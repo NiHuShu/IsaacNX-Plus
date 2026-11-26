@@ -747,13 +747,16 @@ Tried and dropped:
 
 ## Experimental reflection skipping
 
-On Steam v1.9.7.19, the lifted room renderer enters `RENDER_WATER_REFLECT`
-at `0x82a09d` and flushes the last reflection batch before `0x82a200`.
-The build adds two host calls at those boundaries. When `skip_reflections=1`
-is set, the GLES wrappers skip the draw calls within that interval. The
-game still runs its usual room logic, render callbacks, and framebuffer
-setup. The change reduces graphics submissions for reflections. Switch
-frame-time gains and mod compatibility still need hardware testing.
+On Steam v1.9.7.19, the lifted room renderer records reflected entity
+geometry with the room in `RENDER_WATER_REFLECT` mode. When
+`skip_reflections=1` is set, the hook at `0x82a0a7` jumps directly to the
+existing batch submission and cleanup at `0x82a200`. The game still runs
+its normal update and the other room passes. This option bypasses render
+callbacks specific to the reflection pass. Its frame-time gains and mod
+compatibility on Switch still need hardware testing. A Linux GLES run in
+Flooded Caves skipped 1,470 reflection passes and finished with zero GL
+errors. The captured frame retained the water surface and the regular
+entity sprites.
 
 The NEON conversion helps RGB texture uploads during video playback.
 Endings still decode Theora on the game's cooperative worker. A different

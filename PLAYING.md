@@ -91,9 +91,10 @@ The menu writes the game's `options.ini` inside the save folder and keeps a
 Switch-local `saves/resources/config.ini` override for graphics effects.
 Frame skip is saved as `frame_skip` in the homebrew's `settings.ini`.
 
-**Skip water reflections** is an experimental option. It drops graphics
-draws while the game builds flooded-room reflections. It defaults to Off.
-If a reflection or mod effect is missing, turn the option off and relaunch.
+**Skip water reflections** is an experimental option. It skips recording
+reflected entities in flooded rooms. Other water effects still run. Mods
+that draw during the reflection pass may look different. The option starts
+off and applies the next time you launch the game.
 
 ## Launcher artwork and font
 
