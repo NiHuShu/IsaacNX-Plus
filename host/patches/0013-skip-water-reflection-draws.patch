@@ -1,0 +1,17 @@
+--- a/scripts/recomp/host/src/host_gl_webgl.c
++++ b/scripts/recomp/host/src/host_gl_webgl.c
+@@ -464,11 +464,14 @@
++int isaac_native_skip_water_draw(void);
+ GLFN(glDrawArraysInstancedEXT) {
+     ENTER;
++    if (isaac_native_skip_water_draw()) RET0;
+     lazy_before_draw();
+     isaac_gl_draw_arrays_instanced(A(0), (GLint)A(1), (GLsizei)A(2), (GLsizei)A(3));
+     RET0;
+ }
+ GLFN(glDrawElements) {
+     ENTER;
++    if (isaac_native_skip_water_draw()) RET0;
+     lazy_before_draw();
+     isaac_gl_draw_elements(A(0), (GLsizei)A(1), A(2), A(3));
+     RET0;

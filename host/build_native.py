@@ -100,12 +100,17 @@ COMMON = ["-fno-strict-aliasing", "-fwrapv", "-DRECOMP_MEM_IDENTITY=0",
 #   0xa30e30 (0xa178d0 in 1.9.7.17), the engine's stream open (the upstream probe wrapper): the path
 #   is at [ESP+4]; native_stream_path.c collapses a doubled '/' in it.
 LIFT_HOOKS = [
+    # Room water reflection pass v1.9.7.19. The guest sets Room:GetRenderMode()
+    # to RENDER_WATER_REFLECT (5) at the first marker and flushes it at the second.
+    (None, "  RECOMP_VA(0x82a09du);\n", "  isaac_native_water_reflection(1);\n"),
+    (None, "  RECOMP_VA(0x82a200u);\n", "  isaac_native_water_reflection(0);\n"),
     (None, "  RECOMP_VA(0x410043u);\n", "  isaac_hook_anm2_text(ESP);\n"),
     (None, "  if (on) isaac_probe_str(0xa30e30u, \"stream open\", MEMR32(s->ESP + 4u));\n",
      "  isaac_hook_stream_path(s->ESP);\n"),
 ]
 HOOK_DECLS = ("#include <stdint.h>\nvoid isaac_hook_anm2_text(uint32_t esp);\n"
-              "void isaac_hook_stream_path(uint32_t esp);\n")
+              "void isaac_hook_stream_path(uint32_t esp);\n"
+              "void isaac_native_water_reflection(int active);\n")
 
 # Replacements in the generated files: (file, old, new); old must occur once.
 #   dispatch_tbl.c, the cache hit of every indirect call: the per-entry census
