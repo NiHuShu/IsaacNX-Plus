@@ -17,15 +17,18 @@ check and every step explained.
 Desktop, a Docker volume for the work, the copy to your folder) were exercised on
 Linux, never on a Windows machine.
 
-## Download
+## Start the builder
 
-From the [latest release](https://github.com/antoniotorres02/isaac-switch-native/releases/latest):
+Download or clone IsaacNX+ and run the included builder from the checkout.
+It uses the original project's tool image and compiles the IsaacNX+ source
+in your checkout.
 
-- **Windows**: `isaac-switch-builder.exe`. Double-click it. (Windows SmartScreen may
-  warn that it does not know the program: *More info → Run anyway*.)
-  `isaac-switch-builder-cli.exe` is the same for a terminal.
-- **Linux** (x86-64): `isaac-switch-builder-linux`, then `chmod +x` it and run it. It
-  needs Tk, which desktop distributions already have.
+- **Windows:** `py -3 host/builder/isaac_switch_builder.py gui --steam`
+- **Linux (x86-64):** `python3 host/builder/isaac_switch_builder.py gui --steam`
+
+The window requires Python with Tk. The terminal build also runs without Tk.
+Omit `--steam` or turn off **Include Steam Workshop and Steam Cloud** in the
+window to build without Steam support.
 
 ## What you need
 
@@ -40,7 +43,7 @@ From the [latest release](https://github.com/antoniotorres02/isaac-switch-native
 
 ## Using it
 
-Run `isaac-switch-builder` (on Windows, `isaac-switch-builder.exe`). Six pages:
+Start the builder as described above. It opens a six-page guide:
 
 1. **The game**: found through Steam (Windows registry, `~/.local/share/Steam`,
    Flatpak, Snap, every library folder); every install it finds is in the list, and
@@ -59,7 +62,7 @@ Run `isaac-switch-builder` (on Windows, `isaac-switch-builder.exe`). Six pages:
    - too little memory, on Windows: **Open .wslconfig**, explained step by step;
    - then the tool image (downloaded once, ~230 MB; ~1 GB on disk).
 4. **Ready**: where the result goes, **Check everything**, and **Start the build**.
-   Steam Cloud and the number of jobs are under *Advanced options*.
+   Steam Workshop, Steam Cloud and the number of jobs are under *Advanced options*.
 5. **Building**: the nine stages, how long is left, and **Stop**. Stopping is safe:
    **Carry on from where it was** resumes at the stage it was on. The computer does
    not go to sleep while it builds.
@@ -83,13 +86,42 @@ isaac-switch-builder clean                                   # delete the work f
 **Do not share the NRO or the result folder**: they hold the executable's image and
 the game's files. Everyone has to build their own.
 
+## Building from a checkout
+
+Launch the Builder directly from the checkout to compile its current native
+sources with the original tool image.
+
+```sh
+python3 host/builder/isaac_switch_builder.py gui --steam
+```
+
+The Builder checks for a matching `isaac-ng.exe` in the current folder, the
+checkout and its parent. `--exe` selects a specific executable. `--game`
+selects the folder containing `resources/` and `savedatapath.txt`.
+Use `build` in place of `gui` to run the same workflow in the terminal.
+
+On Linux, pass `--folder` with an existing command-line work folder that
+contains `stamps/` and `upstream/` to reuse it. The result stays under that
+folder's `out/sd-card/`. Changes to the native sources rerun the NRO
+compilation and SD packaging stages. The earlier game analysis and asset
+index may be reused.
+
+To use the previously downloaded Builder executable, build a local image
+from the checkout and select it with `--image isaac-switch-builder:workshop`.
+Enable Steam in the Builder's advanced options for a Workshop build.
+
+```sh
+docker build -t isaac-switch-builder:workshop -f docker/Dockerfile .
+```
+
 ## How it works
 
 The program never builds anything itself. It runs
 [build_all.py](../build_all.py) inside the pinned image of
 [docker/Dockerfile](../../docker/Dockerfile), offline (`--network none`), with the
 executable and the game mounted read-only, and reads its progress as JSON lines
-(`--progress json`).
+(`--progress json`). When launched from a checkout it also mounts that
+checkout's `host/` over the copy in the image.
 
 | | Linux | Windows |
 | --- | --- | --- |
