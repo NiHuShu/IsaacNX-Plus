@@ -36,6 +36,7 @@
  * tools/bench_native.py drives it. */
 #ifdef __SWITCH__
 #include <switch.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -145,6 +146,7 @@ static struct { int held, play, r_down, restarted; uint64_t since, start_until; 
  * is missing; edit it to change them (key=0 or key=1). */
 static int g_switch_glyphs = 1;   /* Switch button glyphs (native_glyphs.c)  */
 static int g_a_accepts = 1;       /* menus by label: A accepts, B goes back */
+static int g_skip_reflections;   /* experimental: skip rendering during the water reflection pass */
 static int g_frame_skip = 1;      /* in play: 0 every frame, 1 when late, 2 always (ISAAC_RENDER_GATE) */
 static int g_render_thread = 1;   /* GL on its own core (native_glq.c, ISAAC_NATIVE_GLQ) */
 #ifndef ISAAC_NO_STEAM
@@ -226,6 +228,8 @@ static const char SETTINGS_ZOOM[] =
 
 static void load_settings(void) {
     FILE *f = fopen(ROOT "/settings.ini", "r");
+    if (!f && errno == ENOENT && !rename(ROOT "/settings.ini.tmp-backup", ROOT "/settings.ini"))
+        f = fopen(ROOT "/settings.ini", "r");
     if (!f) {
         if ((f = fopen(ROOT "/settings.ini", "w"))) { fputs(SETTINGS_DEFAULT, f); fclose(f); }
         return;
@@ -241,6 +245,7 @@ static void load_settings(void) {
         if (!strcmp(k, "switch_glyphs")) g_switch_glyphs = atoi(v) != 0;
         else if (!strcmp(k, "a_accepts")) g_a_accepts = atoi(v) != 0;
         else if (!strcmp(k, "frame_skip")) g_frame_skip = atoi(v);
+        else if (!strcmp(k, "skip_reflections")) g_skip_reflections = atoi(v) != 0;
         else if (!strcmp(k, "render_thread")) g_render_thread = atoi(v) != 0;
 #ifndef ISAAC_NO_STEAM
         else if (!strcmp(k, "steam_sync")) g_steam_sync = atoi(v) != 0;
@@ -252,9 +257,10 @@ static void load_settings(void) {
         else if (!strcmp(k, "zoom")) { g_zoom = atoi(v); has_zoom = 1; }
     }
     fclose(f);
+    if (g_frame_skip < 0 || g_frame_skip > 2) g_frame_skip = 1;
     if (g_zoom < 0) g_zoom = 0;
     if (g_zoom > 100) g_zoom = 100;
-    /* A settings.ini from before the zoom: add its line and enable the new view once. */
+    /* Add the zoom setting for older installations that lack it. */
     if (!has_zoom && (f = fopen(ROOT "/settings.ini", "a"))) {
         fputs(SETTINGS_ZOOM, f);
         fclose(f);
@@ -269,44 +275,6 @@ static void load_settings(void) {
     (void)has_auto;
 #endif
 }
-
-/* Rewrites one `key=value` line of settings.ini, the comments kept; added at
- * the end when it is not there. */
-static void settings_set(const char *key, int value) {
-    FILE *f = fopen(ROOT "/settings.ini", "r");
-    char *text = NULL;
-    size_t len = 0, cap = 0;
-    char line[512];
-    int done = 0;
-    size_t klen = strlen(key);
-    while (f && fgets(line, sizeof line, f)) {
-        char out[540];
-        const char *k = line + strspn(line, " \t");
-        if (!done && line[0] != '#' && !strncmp(k, key, klen) && (k[klen] == '=' || k[klen] == ' ')) {
-            snprintf(out, sizeof out, "%s=%d\n", key, value);
-            done = 1;
-        } else {
-            snprintf(out, sizeof out, "%s", line);
-        }
-        size_t n = strlen(out);
-        if (len + n + 1 > cap) {
-            cap = (len + n + 1) * 2;
-            char *t = realloc(text, cap);
-            if (!t) { free(text); fclose(f); return; }
-            text = t;
-        }
-        memcpy(text + len, out, n + 1);
-        len += n;
-    }
-    if (f) fclose(f);
-    if ((f = fopen(ROOT "/settings.ini", "w"))) {
-        if (text) fputs(text, f);
-        if (!done) fprintf(f, "%s=%d\n", key, value);
-        fclose(f);
-    }
-    free(text);
-}
-
 
 #define PLUS_TAP_MS 400
 
@@ -866,7 +834,9 @@ static void signin_run(void) {
             g_ln.signin = ISAAC_SIGNIN_NONE;
             g_ln_has_token = 1;
             g_ln_token_bad = 0;
-            g_ln_start_pull = 1;
+            snprintf(g_ln.account, sizeof g_ln.account, "Steam · …%07llu",
+                     (unsigned long long)(result.steamid % 10000000u));
+            g_ln_start_pull = g_steam_sync;
             pthread_mutex_unlock(&g_ln_lock);
             return;
         }
@@ -1119,7 +1089,7 @@ static int panel_pad(u64 b, int play, uint64_t now) {
     }
     if (down & HidNpadButton_X) {
         g_auto_upload = !g_auto_upload;
-        settings_set("auto_upload", g_auto_upload);
+        isaac_port_setting(ROOT, "auto_upload", g_auto_upload);
         stage("panel: auto_upload=%d", g_auto_upload);
         pthread_mutex_lock(&g_pn_lock);
         g_pn.auto_upload = g_auto_upload;
@@ -1174,6 +1144,48 @@ static void steam_sync_run(int push) {
 }
 #endif
 
+static void open_game_options(isaac_options_menu *menu) {
+    if (isaac_options_read(menu, ROOT "/saves", g_guest))
+        snprintf(menu->status, sizeof menu->status, "Could not read all settings from the SD card.");
+    menu->values[ISAAC_OPTION_FRAME_CADENCE] = g_frame_skip;
+    menu->values[ISAAC_OPTION_SKIP_REFLECTIONS] = g_skip_reflections;
+}
+
+static int game_options_input(isaac_options_menu *menu, uint64_t down) {
+    if (down & HidNpadButton_B) return 0;
+    if (down & HidNpadButton_A) {
+        if (isaac_options_write(menu, ROOT "/saves", g_guest) == 0) {
+            int cadence = menu->values[ISAAC_OPTION_FRAME_CADENCE];
+            int reflections = menu->values[ISAAC_OPTION_SKIP_REFLECTIONS];
+            int frame_ok = cadence == g_frame_skip || !isaac_port_setting(ROOT, "frame_skip", cadence);
+            if (frame_ok) {
+                g_frame_skip = cadence;
+                if (reflections == g_skip_reflections || !isaac_port_setting(ROOT, "skip_reflections", reflections)) {
+                    g_skip_reflections = reflections;
+                    return 0;
+                }
+            }
+        }
+        snprintf(menu->status, sizeof menu->status, "Could not save all changes to the SD card.");
+    } else if (down & HidNpadButton_X) {
+        isaac_options_defaults(menu);
+        menu->status[0] = 0;
+    } else if ((down & HidNpadButton_AnyUp) && menu->selected) {
+        --menu->selected;
+    } else if ((down & HidNpadButton_AnyDown) && menu->selected + 1 < ISAAC_OPTION_COUNT) {
+        ++menu->selected;
+    } else if (down & (HidNpadButton_AnyLeft | HidNpadButton_AnyRight)) {
+        int i = menu->selected;
+        const isaac_option_spec *spec = &isaac_option_specs[i];
+        int next = menu->values[i] + ((down & HidNpadButton_AnyLeft) ? -1 : 1);
+        if (next < spec->min) next = spec->max == 1 ? 1 : spec->min;
+        if (next > spec->max) next = spec->max == 1 ? 0 : spec->max;
+        menu->values[i] = next;
+        if (spec->effect < 2) menu->changed |= 1u << i;
+    }
+    return 1;
+}
+
 /* The screen until the player decides: 1 Play, 0 left (B or HOME), -1 the
  * screen could not be set up (nothing ran: the caller syncs without it). */
 static int launcher_run(void) {
@@ -1198,6 +1210,9 @@ static int launcher_run(void) {
     }
     framebufferMakeLinear(&fb);
     isaac_launcher_load_art("romfs:/launcher", ROOT "/ui");
+    isaac_options_menu options;
+    int options_open = 0, about_open = 0;
+    PadRepeater options_scroll;
 #ifdef ISAAC_NO_STEAM
     stage("launcher: shown (built without Steam)");
     g_ln.phase = ISAAC_LAUNCHER_OFF;
@@ -1208,7 +1223,20 @@ static int launcher_run(void) {
         if (choice < 0 && !appletMainLoop()) choice = 0;
         padUpdate(&g_pad);
         u64 down = choice < 0 ? padGetButtonsDown(&g_pad) : 0;
-        if (down & HidNpadButton_B) {
+        if (choice < 0 && options_open) {
+            padRepeaterUpdate(&options_scroll, padGetButtons(&g_pad) &
+                              (HidNpadButton_AnyUp | HidNpadButton_AnyDown));
+            if (!down) down = padRepeaterGetButtons(&options_scroll);
+            options_open = game_options_input(&options, down);
+        } else if (about_open) {
+            if (down & (HidNpadButton_B | HidNpadButton_Plus)) about_open = 0;
+        } else if (down & HidNpadButton_X) {
+            open_game_options(&options);
+            padRepeaterInitialize(&options_scroll, 10, 3);
+            options_open = 1;
+        } else if (down & HidNpadButton_Plus) {
+            about_open = 1;
+        } else if (down & HidNpadButton_B) {
             choice = 0;
         } else if ((down & HidNpadButton_A) && g_ln.files != ISAAC_FILES_BAD) {
             choice = 1;
@@ -1216,6 +1244,9 @@ static int launcher_run(void) {
         }
         g_ln.t = armTicksToNs(armGetSystemTick() - t0) / 1e9f;
         view = g_ln;
+        view.options_available = choice < 0;
+        view.options = choice < 0 && options_open ? &options : NULL;
+        view.about_open = choice < 0 && about_open;
         u32 stride;
         uint32_t *px = framebufferBegin(&fb, &stride);
         isaac_launcher_draw(px, (int)(stride / 4), &view);
@@ -1231,6 +1262,8 @@ static int launcher_run(void) {
     struct stat token_st;
     g_ln_has_token = stat(TOKEN_PATH, &token_st) == 0;
     g_ln_token_bad = 0;
+    int workshop_open = 0;
+    PadRepeater workshop_scroll;
     if (g_steam_sync && !g_ln_has_token) {
         ln_reset(ISAAC_LAUNCHER_SIGNED_OUT);
         ln_error(SIGNED_OUT_TEXT);
@@ -1239,6 +1272,7 @@ static int launcher_run(void) {
         joinable = sync_thread_start(&thread) == 0;
     } else {
         ln_reset(ISAAC_LAUNCHER_OFF);
+        if (g_ln_has_token) snprintf(g_ln.account, sizeof g_ln.account, "Steam session saved");
         ln_error("Steam Cloud sync is off (steam_sync=0 in settings.ini): your saves stay on this console.");
     }
 
@@ -1255,7 +1289,9 @@ static int launcher_run(void) {
                    g_ln.phase != ISAAC_LAUNCHER_LAUNCHING && choice < 0;
         g_ln.account_action = !idle ? ISAAC_ACCOUNT_NONE
                               : g_ln_has_token && !g_ln_token_bad ? ISAAC_ACCOUNT_SIGN_OUT
-                              : g_steam_sync ? ISAAC_ACCOUNT_SIGN_IN : ISAAC_ACCOUNT_NONE;
+                              : ISAAC_ACCOUNT_SIGN_IN;
+        g_ln.workshop_available = idle;
+        g_ln.options_available = idle;
         if (g_ln_start_pull && !g_ln_busy && choice < 0) {
             g_ln_start_pull = 0;
             pthread_mutex_unlock(&g_ln_lock);
@@ -1291,6 +1327,39 @@ static int launcher_run(void) {
                 g_ln_answer = g_ln.conflict_choice;
                 pthread_cond_broadcast(&g_ln_cond);
             }
+        } else if (options_open && choice < 0) {
+            padRepeaterUpdate(&options_scroll, padGetButtons(&g_pad) &
+                              (HidNpadButton_AnyUp | HidNpadButton_AnyDown));
+            if (!down) down = padRepeaterGetButtons(&options_scroll);
+            options_open = game_options_input(&options, down);
+        } else if (about_open && choice < 0) {
+            if (down & (HidNpadButton_B | HidNpadButton_Plus)) about_open = 0;
+        } else if (workshop_open && choice < 0) {
+            pthread_mutex_unlock(&g_ln_lock);
+            padRepeaterUpdate(&workshop_scroll, padGetButtons(&g_pad) &
+                              (HidNpadButton_AnyUp | HidNpadButton_AnyDown |
+                               HidNpadButton_AnyLeft | HidNpadButton_AnyRight));
+            if (!down) down = padRepeaterGetButtons(&workshop_scroll);
+            int action = workshop_browser_input(down, g_ln_has_token && !g_ln_token_bad);
+            if (action) {
+                workshop_browser_close();
+                workshop_open = 0;
+                if (action == WORKSHOP_SIGNIN) signin_open(&thread, &joinable);
+            }
+            pthread_mutex_lock(&g_ln_lock);
+        } else if ((down & HidNpadButton_Y) && idle) {
+            pthread_mutex_unlock(&g_ln_lock);
+            if (joinable) { pthread_join(thread, NULL); joinable = 0; }
+            workshop_open = workshop_browser_open(ROOT, ROOT "/saves", TOKEN_PATH, g_installed) == 0;
+            padRepeaterInitialize(&workshop_scroll, 8, 2);
+            if (!workshop_open) workshop_browser_close();
+            pthread_mutex_lock(&g_ln_lock);
+        } else if ((down & HidNpadButton_X) && idle) {
+            open_game_options(&options);
+            padRepeaterInitialize(&options_scroll, 10, 3);
+            options_open = 1;
+        } else if (down & HidNpadButton_Plus) {
+            about_open = 1;
         } else if (down & HidNpadButton_B) {
             choice = 0;
         } else if ((down & HidNpadButton_A) && g_ln.phase != ISAAC_LAUNCHER_SYNCING &&
@@ -1317,7 +1386,10 @@ static int launcher_run(void) {
             pthread_cond_broadcast(&g_ln_cond);
         }
         g_ln.t = armTicksToNs(armGetSystemTick() - t0) / 1e9f;
+        g_ln.workshop = workshop_open && choice < 0 ? workshop_browser_view() : NULL;
         view = g_ln;
+        view.options = choice < 0 && options_open ? &options : NULL;
+        view.about_open = choice < 0 && about_open;
         pthread_mutex_unlock(&g_ln_lock);
         u32 stride;
         uint32_t *px = framebufferBegin(&fb, &stride);
@@ -1325,6 +1397,8 @@ static int launcher_run(void) {
         framebufferEnd(&fb);
         if (choice >= 0) ++last_frames;   /* Launching / Exiting stays up a moment */
     }
+    if (workshop_open) workshop_browser_close();
+    g_ln.workshop = NULL;
     /* Leaving mid-sync waits for the thread: it ends within the network timeout. */
     if (joinable) pthread_join(thread, NULL);
     g_ln_on = 0;
@@ -1617,15 +1691,14 @@ int main(int argc, char **argv) {
             setenv("ISAAC_SAVE_DIR", ROOT "/saves", 1);
             mods = 1;                    /* play mode: the instance's mods/ is mounted */
             setenv("ISAAC_NATIVE_WALL_CLOCK", "1", 1);   /* real time, as the web build plays */
-            setenv("ISAAC_RENDER_GATE", g_frame_skip == 2 ? "4" : g_frame_skip == 1 ? "1" : "0", 0);
+            setenv("ISAAC_SWITCH_PERFORMANCE_DEFAULTS", "1", 1);
             /* Full screen: a window of 540 rows down to 480 (zoom=100), 16:9,
              * which the engine fills with 270 down to 240 points (patch 0008). */
             static char view[24];
             int vh = 540 - (60 * g_zoom + 50) / 100, vw = (vh * 16 / 9) & ~1;
             snprintf(view, sizeof view, "%dx%d", vw, vh);
             setenv("ISAAC_NATIVE_FULLSCREEN_VIEW", view, 0);
-            if (g_zoom_new) setenv("ISAAC_NATIVE_FULLSCREEN_ON", "1", 0);
-            stage("full screen view %s%s", view, g_zoom_new ? ", turned on once" : "");
+            stage("full screen view %s", view);
         }
         if (bench) {
             static char from[16], to[16];
@@ -1647,9 +1720,20 @@ int main(int argc, char **argv) {
             if (shown < 0) steam_sync_run(0);
             else play = shown;
         }
+#ifndef ISAAC_NO_STEAM
+        if (play && !automatic) {
+            mod_store workshop;
+            if (mod_store_init(&workshop, ROOT, ROOT "/saves", g_installed) == 0 && mod_recover(&workshop))
+                stage("Workshop: SD recovery incomplete");
+        }
+#endif
         if (!play) {
             status = "EXIT";
         } else {
+            if (!automatic) {
+                setenv("ISAAC_RENDER_GATE", g_frame_skip == 2 ? "4" : g_frame_skip == 1 ? "1" : "0", 0);
+                setenv("ISAAC_NATIVE_SKIP_REFLECTIONS", g_skip_reflections ? "1" : "0", 0);
+            }
             stage("running the game");
             int rc = run_game();
             if (g_exit_tick) stage("game closed %u ms after HOME -> Close", since_exit_request());

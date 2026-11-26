@@ -516,6 +516,7 @@ static void pad_button(int x, int cy, const char *letter) {
 /* ---- the background, drawn once ----------------------------------------------- */
 
 static uint32_t *g_bg;
+static int g_bg_workshop = -1;
 
 static float hash2(int x, int y) {
     uint32_t h = (uint32_t)x * 374761393u + (uint32_t)y * 668265263u;
@@ -792,9 +793,14 @@ static void draw_footer(const isaac_launcher_view *v) {
     int x = W - 40;
     struct { const char *key, *what; int on; } hints[] = {
         { "B", "Exit", 1 },
+        { "+", "About", 1 },
 #ifndef ISAAC_NO_STEAM
         { "−", v->account_action == ISAAC_ACCOUNT_SIGN_IN ? "Sign In" : "Sign Out",
           v->account_action != ISAAC_ACCOUNT_NONE },
+#endif
+        { "X", "Options", v->options_available },
+#ifndef ISAAC_NO_STEAM
+        { "Y", "Workshop", v->workshop_available },
 #endif
         { "A", v->phase == ISAAC_LAUNCHER_FAILED ? "Play anyway" : "Play",
           v->files != ISAAC_FILES_BAD && v->phase != ISAAC_LAUNCHER_SYNCING && v->phase != ISAAC_LAUNCHER_LAUNCHING },
@@ -817,6 +823,50 @@ static void draw_footer(const isaac_launcher_view *v) {
         fit(activity, sizeof activity, v->activity, 13, REG, x - 40);
         text(40, cy + 5, activity, 13, REG, C_DIM);
     }
+}
+
+static void draw_about(void) {
+    int x = 324, y = 174, w = 632, h = 372;
+    rect(0, 0, W, H, 0, 174);
+    rrect_grad(x, y, w, h, 8, C_PAGE_TOP, C_PAGE_BOT, 1, 255);
+    rrect_line(x, y, w, h, 8, 1, C_ACCENT, 180);
+    text(x + 30, y + 53, "IsaacNX+", 32, BOLD, C_TEXT);
+    text(x + 30, y + 91, "The Binding of Isaac: Repentance+", 19, REG, C_TEXT2);
+    text(x + 30, y + 144, "Based on isaac-switch-native by Antonio Torres", 18, REG, C_TEXT);
+    text(x + 30, y + 176, "Built on the browsing-of-isaac recompiler", 18, REG, C_TEXT);
+    text(x + 30, y + 208, "Switch Button Icons by Gioele Casazza (CC BY 4.0)", 18, REG, C_TEXT);
+    text(x + 30, y + 264, "github.com/NiHuShu/IsaacNX-Plus", 17, REG, C_ACCENT);
+    rect(x + 30, y + h - 63, w - 60, 1, 0x3a4b5e, 180);
+    controller_hint(x + w - 32, y + h - 33, "B", "+", "Go Back");
+}
+
+static void draw_options(const isaac_options_menu *menu) {
+    rect(0, 0, W, H, 0, 186);
+    rrect_grad(220, 56, 840, 606, 8, C_PAGE_TOP, C_PAGE_BOT, 1, 255);
+    rrect_line(220, 56, 840, 606, 8, 1, C_ACCENT, 180);
+    text(255, 104, "Game Options", 29, BOLD, C_TEXT);
+    text(255, 133, "Graphics and settings applied at the next game launch", 16, REG, C_TEXT2);
+    for (int i = 0; i < ISAAC_OPTION_COUNT; ++i) {
+        const isaac_option_spec *spec = &isaac_option_specs[i];
+        int y = 148 + i * 41, active = menu->selected == i;
+        rrect(252, y, 776, 39, 4, active ? 0x285985 : C_PANEL, active ? 255 : 82);
+        text(263, y + 19, spec->label, 17, BOLD, C_TEXT);
+        text(263, y + 35, spec->detail, 14, REG, C_TEXT2);
+        char value[32];
+        if (i == ISAAC_OPTION_FRAME_CADENCE) {
+            static const char *cadence[] = {"60 FPS", "Adaptive", "30 FPS"};
+            int mode = menu->values[i];
+            snprintf(value, sizeof value, "%s", cadence[mode >= 0 && mode <= 2 ? mode : 1]);
+        } else if (spec->max == 1) snprintf(value, sizeof value, "%s", menu->values[i] ? "On" : "Off");
+        else snprintf(value, sizeof value, "%d×", menu->values[i]);
+        text(1010 - text_w(value, 20, BOLD, 0), y + 29, value, 20, BOLD, C_TEXT);
+    }
+    if (menu->status[0]) text(255, 618, menu->status, 15, REG, C_WARN);
+    int x = dialog_hint(1028, 636, "B", "Discard");
+    x = dialog_hint(x, 636, "A", "Save");
+    x = dialog_hint(x, 636, "X", "Performance defaults");
+    x = controller_hint(x, 636, "<", ">", "Change");
+    controller_hint(x, 636, "↑", "↓", "Select");
 }
 
 #ifndef ISAAC_NO_STEAM
@@ -932,6 +982,343 @@ static void draw_signout(const isaac_launcher_view *v) {
 }
 #endif /* !ISAAC_NO_STEAM */
 
+#ifndef ISAAC_NO_STEAM
+static void workshop_text(int x, int y, const char *message, int px, int bold,
+                          uint32_t color, int width) {
+    char fit_text[420];
+    fit(fit_text, sizeof fit_text, message, px, bold, width);
+    text(x, y, fit_text, px, bold, color);
+}
+
+static void workshop_image(const workshop_thumb *thumb, int x, int y) {
+    rrect(x, y, WORKSHOP_THUMB_W + 12, WORKSHOP_THUMB_H + 12, 4, C_PANEL, 90);
+    if (!thumb || !thumb->width || thumb->width > WORKSHOP_THUMB_W ||
+        !thumb->height || thumb->height > WORKSHOP_THUMB_H) return;
+    x += (WORKSHOP_THUMB_W + 12 - (int)thumb->width) / 2;
+    y += (WORKSHOP_THUMB_H + 12 - (int)thumb->height) / 2;
+    for (unsigned row = 0; row < thumb->height; ++row)
+        for (unsigned col = 0; col < thumb->width; ++col)
+            rgba_pixel(x + col, y + row, thumb->pixels[row * thumb->width + col]);
+}
+
+static void workshop_tile(const workshop_thumb *thumb, int x, int y, int w, int h, int frame) {
+    if (frame) rrect(x, y, w, h, 4, C_PAGE_BOT, 210);
+    if (!thumb || !thumb->width || thumb->width > WORKSHOP_THUMB_W ||
+        !thumb->height || thumb->height > WORKSHOP_THUMB_H) return;
+    int sw = w, sh = w * thumb->height / thumb->width;
+    if (sh > h) {
+        sh = h;
+        sw = h * thumb->width / thumb->height;
+    }
+    if (sw < 1 || sh < 1) return;
+    x += (w - sw) / 2;
+    y += (h - sh) / 2;
+    for (int row = 0; row < sh; ++row) {
+        const uint32_t *src = thumb->pixels + (size_t)(row * thumb->height / sh) * thumb->width;
+        for (int col = 0; col < sw; ++col)
+            rgba_pixel(x + col, y + row, src[col * thumb->width / sw]);
+    }
+}
+
+typedef struct {
+    const char *text;
+    unsigned style;
+} description_cursor;
+
+enum description_style {
+    DESC_BOLD = 1, DESC_ITALIC = 2, DESC_UNDERLINE = 4, DESC_STRIKE = 8,
+    DESC_H1 = 16, DESC_H2 = 32, DESC_H3 = 64, DESC_QUOTE = 128,
+    DESC_CODE = 256, DESC_LINK = 512,
+};
+
+static void description_style(description_cursor *cursor) {
+    static const char codes[] = WORKSHOP_STYLE_CODES;
+    while (*cursor->text == WORKSHOP_STYLE_MARKER && cursor->text[1]) {
+        char code = cursor->text[1];
+        int closing = (code >= '4' && code <= '6') || (code >= 'a' && code <= 'z');
+        if (closing) code -= code <= '6' ? 3 : 'a' - 'A';
+        const char *key = strchr(codes, code);
+        if (key && *key) {
+            unsigned flag = 1u << (key - codes);
+            if (closing) cursor->style &= ~flag;
+            else cursor->style |= flag;
+        }
+        cursor->text += 2;
+    }
+}
+
+static int description_px(unsigned style) {
+    if (style & DESC_H1) return 29;
+    if (style & DESC_H2) return 24;
+    if (style & DESC_H3) return 21;
+    return 18;
+}
+
+static int description_weight(unsigned style) {
+    int bold = (style & (DESC_BOLD | DESC_H1 | DESC_H2 | DESC_H3)) != 0;
+    return bold | (style & DESC_ITALIC);
+}
+
+static void description_glyph(const glyph *g, int x, int y, unsigned style) {
+    uint32_t color = style & (DESC_H1 | DESC_H2 | DESC_H3) ? C_TEXT :
+                     style & (DESC_LINK | DESC_CODE) ? C_ACCENT : C_TEXT2;
+    if (g->bmp)
+        for (int row = 0; row < g->h; ++row)
+            for (int col = 0; col < g->w; ++col)
+                blend(x + g->left + col, y - g->top + row, color, g->bmp[row * g->w + col]);
+    if (style & (DESC_UNDERLINE | DESC_LINK)) rect(x, y + 2, g->adv, 1, color, 230);
+    if (style & DESC_STRIKE) rect(x, y - 5, g->adv, 1, color, 230);
+}
+
+static description_cursor description_line_end(description_cursor start, int *height) {
+    description_cursor p = start, space = {0};
+    int width = 0, available = start.style & DESC_QUOTE ? 860 : 880;
+    *height = description_px(start.style) + 7;
+    while (*p.text && *p.text != '\n') {
+        description_style(&p);
+        if (!*p.text || *p.text == '\n') break;
+        description_cursor before = p;
+        uint32_t cp = utf8_next(&p.text);
+        int px = description_px(p.style);
+        width += get_glyph(cp, px, description_weight(p.style))->adv;
+        if (width > available && before.text != start.text) return space.text ? space : before;
+        if (cp == ' ' || cp == '\t') space = before;
+        if (px + 7 > *height) *height = px + 7;
+    }
+    return p;
+}
+
+static void draw_description_line(description_cursor p, const char *end, int y, int height) {
+    int x = 42, baseline = y + height - 6;
+    if (p.style & DESC_QUOTE) {
+        rect(x, y, 2, height, C_ACCENT, 160);
+        x += 16;
+    }
+    while (p.text < end) {
+        description_style(&p);
+        if (p.text >= end) break;
+        uint32_t cp = utf8_next(&p.text);
+        const glyph *g = get_glyph(cp, description_px(p.style), description_weight(p.style));
+        description_glyph(g, x, baseline, p.style);
+        x += g->adv;
+    }
+}
+
+static const workshop_thumb *workshop_animation_frame(const workshop_animation *media, float t) {
+    if (!media || !media->count) return NULL;
+    if (media->count == 1) return media->frames[0];
+    unsigned duration = 0;
+    for (unsigned i = 0; i < media->count; ++i) duration += media->delay[i];
+    if (!duration) return media->frames[0];
+    unsigned at = (uint64_t)(t * 1000) % duration;
+    for (unsigned i = 0; i + 1 < media->count; ++i) {
+        if (at < media->delay[i]) return media->frames[i];
+        at -= media->delay[i];
+    }
+    return media->frames[media->count - 1];
+}
+
+static description_cursor description_page(description_cursor p, const workshop_view *view,
+                                           float t, unsigned *mask) {
+    const int top = 199, bottom = 551, media_height = 148;
+    for (int y = top; *p.text && y < bottom;) {
+        description_style(&p);
+        if (!*p.text) break;
+        int index = p.text[0] == WORKSHOP_MEDIA_MARKER ? p.text[1] - 'A' : -1;
+        if (index >= 0 && index < WORKSHOP_MEDIA_IMAGES && p.text[2] == '\n') {
+            if (y + media_height > bottom) break;
+            if (mask) *mask |= 1u << index;
+            if (view) {
+                const workshop_thumb *image = workshop_animation_frame(view->media[index], t);
+                if (image) {
+                    int width = media_height * image->width / image->height;
+                    if (width < 1) width = 1;
+                    workshop_tile(image, 42, y, width < 880 ? width : 880, media_height, 0);
+                } else {
+                    const char *label = view->media_failed & (1u << index) ? "Image unavailable" : "Loading image…";
+                    text(42, y + 27, label, 16, REG, C_TEXT2);
+                }
+            }
+            y += media_height + 7;
+            p.text += 3;
+            continue;
+        }
+        int height;
+        description_cursor end = description_line_end(p, &height);
+        if (y + height > bottom) break;
+        if (view) draw_description_line(p, end.text, y, height);
+        p = end;
+        if (*p.text == '\n') ++p.text;
+        while (*p.text == ' ' || *p.text == '\t') ++p.text;
+        y += height;
+    }
+    return p;
+}
+
+static description_cursor workshop_description(const char *s, int page, const workshop_view *view,
+                                                float t, unsigned *mask) {
+    description_cursor cursor = {s, 0};
+    for (int current = 0; *cursor.text && current <= page; ++current)
+        cursor = description_page(cursor, current == page ? view : NULL, t, current == page ? mask : NULL);
+    return cursor;
+}
+
+int isaac_launcher_workshop_description_pages(const char *description) {
+    int pages = 0;
+    description_cursor cursor = {description, 0};
+    while (*cursor.text) {
+        cursor = description_page(cursor, NULL, 0, NULL);
+        ++pages;
+    }
+    return pages;
+}
+
+unsigned isaac_launcher_workshop_description_media(const char *description, int page) {
+    unsigned mask = 0;
+    workshop_description(description, page, NULL, 0, &mask);
+    return mask;
+}
+
+static void draw_workshop_background(void) {
+    rect(0, 0, W, 50, C_NAV, 255);
+    for (int y = 50; y < FOOT_TOP; ++y)
+        rect(0, y, W, 1, mix(C_PAGE_TOP, C_PAGE_BOT, (y - 50) / (float)(FOOT_TOP - 50)), 255);
+    rect(0, FOOT_TOP, W, H - FOOT_TOP, C_NAV, 255);
+    rect(0, FOOT_TOP, W, 1, 0x2a3442, 255);
+}
+
+static void draw_workshop_hints(const workshop_view *v) {
+    static const struct { const char *key, *second; } buttons[WORKSHOP_HINT_COUNT] = {
+        [WORKSHOP_HINT_A] = {"A"},
+        [WORKSHOP_HINT_X] = {"X"},
+        [WORKSHOP_HINT_Y] = {"Y"},
+        [WORKSHOP_HINT_MINUS] = {"−"},
+        [WORKSHOP_HINT_PLUS] = {"+"},
+        [WORKSHOP_HINT_SCROLL] = {"↑", "↓"},
+        [WORKSHOP_HINT_PAGES] = {"ZL", "ZR"},
+        [WORKSHOP_HINT_TABS] = {"L", "R"},
+        [WORKSHOP_HINT_B] = {"B"},
+    };
+    int x = W - 40;
+    for (int i = WORKSHOP_HINT_COUNT - 1; i >= 0; --i) {
+        if (!v->hints[i]) continue;
+        if (i == WORKSHOP_HINT_SCROLL && v->grid)
+            x = dialog_hint(x, FOOT_TOP + 20, "D-pad", v->hints[i]);
+        else x = controller_hint(x, FOOT_TOP + 20, buttons[i].key, buttons[i].second, v->hints[i]);
+    }
+}
+
+static void draw_workshop_grid(const workshop_view *v, float t) {
+    const int w = 586, h = 93, y0 = 195, step = 102;
+    for (int i = 0; i < v->row_count; ++i) {
+        int x = 40 + (i % WORKSHOP_GRID_COLUMNS) * (w + 14);
+        int y = y0 + (i / WORKSHOP_GRID_COLUMNS) * step;
+        int active = i == v->selected;
+        rrect(x, y, w, h, 6, active ? 0x285985 : C_PANEL, active ? 255 : 180);
+        if (active) rrect_line(x, y, w, h, 6, 1, C_ACCENT, 220);
+        const workshop_thumb *image = workshop_animation_frame(v->rows[i].animation, t);
+        workshop_tile(image ? image : v->rows[i].thumb, x + 7, y + 7, 145, h - 14, 1);
+        workshop_text(x + 166, y + 34, v->rows[i].title, 19, BOLD, C_TEXT, w - 182);
+        paragraph(x + 166, y + 58, w - 182, v->rows[i].detail, 15, 18, C_TEXT2, 2);
+    }
+    size_t count = (v->list_count + WORKSHOP_GRID_COLUMNS - 1) / WORKSHOP_GRID_COLUMNS;
+    size_t visible = WORKSHOP_GRID_CARDS / WORKSHOP_GRID_COLUMNS;
+    if (count > visible) {
+        int track = h + step * ((int)visible - 1);
+        int bar = track * visible / count;
+        int y = y0 + (track - bar) * (v->list_start / WORKSHOP_GRID_COLUMNS) / (count - visible);
+        rrect(1234, y0, 4, track, 2, C_PANEL, 210);
+        rrect(1234, y, 4, bar, 2, C_ACCENT, 220);
+    }
+}
+
+static void draw_workshop(const workshop_view *v, float t) {
+    static const char *tabs[] = { "Browse", "Installed", "Sync" };
+    int nav = 40;
+    text(40, 31, "STEAM WORKSHOP", 17, BOLD, C_TEXT);
+    for (int i = 0; i < WORKSHOP_TAB_COUNT; ++i) {
+        int active = v->tab == i;
+        int w = text_w(tabs[i], 20, BOLD, 0) + 44;
+        rrect(nav, 64, w, 38, 3, active ? 0x285985 : C_PANEL, active ? 255 : 80);
+        text(nav + 22, 90, tabs[i], 20, BOLD, active ? C_TEXT : C_TEXT2);
+        nav += w + 8;
+    }
+    workshop_text(40, 147, v->heading, 32, BOLD, C_TEXT, 1184);
+    workshop_text(40, 180, v->context, 17, REG, C_ACCENT, 1184);
+    if (!v->detail && *v->search) workshop_text(790, 180, v->search, 16, REG, C_TEXT2, 440);
+
+    if (v->detail) {
+        const workshop_thumb *image = workshop_animation_frame(v->thumb_animation, t);
+        workshop_image(image ? image : v->thumb, 960, 212);
+        if (*v->search) paragraph(960, 400, 268, v->search, 16, 22, C_TEXT2, 6);
+        if (*v->description)
+            workshop_description(v->description, v->description_page, v, t, NULL);
+        else text(42, 220, "Description unavailable", 19, REG, C_TEXT2);
+        if (v->description_pages > 1) {
+            int track = 350, height = track / v->description_pages;
+            if (height < 20) height = 20;
+            int offset = (track - height) * v->description_page / (v->description_pages - 1);
+            rrect(930, 200, 5, track, 2, C_PANEL, 210);
+            rrect(930, 200 + offset, 5, height, 2, C_ACCENT, 220);
+        }
+        const char *line_end = strchr(v->dependencies, '\n');
+        char line[384];
+        snprintf(line, sizeof line, "%.*s", line_end ? (int)(line_end - v->dependencies) :
+                 (int)strlen(v->dependencies), v->dependencies);
+        workshop_text(40, 575, line, 16, BOLD, C_ACCENT, 1200);
+        if (line_end) workshop_text(40, 599, line_end + 1, 15, REG, C_TEXT2, 1200);
+    } else if (v->grid && v->row_count) {
+        draw_workshop_grid(v, t);
+    } else if (v->row_count) {
+        const int list_y = 196, row_step = 40, row_height = 37;
+        int w = v->tab == WORKSHOP_BROWSE ? 884 : 1184;
+        for (int i = 0; i < v->row_count; ++i) {
+            int y = list_y + row_step * i;
+            int active = i == v->selected;
+            rrect(40, y, w, row_height, 3, active ? 0x285985 : C_PANEL, active ? 255 : 70);
+            workshop_text(54, y + 16, v->rows[i].title, 17, BOLD, C_TEXT, w - 28);
+            workshop_text(54, y + 32, v->rows[i].detail, 14, REG, C_TEXT2, w - 28);
+        }
+        if (v->list_count > (size_t)v->row_count) {
+            int track = (v->row_count - 1) * row_step + row_height;
+            int height = track * (size_t)v->row_count / v->list_count;
+            if (height < 18) height = 18;
+            int offset = (track - height) * v->list_start / (v->list_count - v->row_count);
+            rrect(48 + w, list_y, 4, track, 2, C_PANEL, 210);
+            rrect(48 + w, list_y + offset, 4, height, 2, C_ACCENT, 220);
+        }
+        if (v->thumb) workshop_image(v->thumb, 960, 212);
+    } else if (*v->description) {
+        paragraph(40, 232, 930, v->description, 21, 29, C_TEXT2, 4);
+    }
+    if (v->total && v->busy) {
+        char bytes[96];
+        const double mib = 1024.0 * 1024.0;
+        float ratio = clamp01((float)((double)v->done / (double)v->total));
+        snprintf(bytes, sizeof bytes, "%.0f%%   %.2f / %.2f MiB verified",
+                 floor(ratio * 100.0), v->done / mib, v->total / mib);
+        rrect(34, 604, 1172, 38, 4, C_NAV, 245);
+        text(42, 620, bytes, 16, REG, C_ACCENT);
+        rrect(42, 627, 800, 7, 3, C_PANEL, 255);
+        if (ratio > 0) rrect(42, 627, ratio * 800, 7, 3, C_ACCENT, 255);
+    }
+    if (v->notice[0] && !v->confirming)
+        workshop_text(40, 656, v->notice, 17, BOLD, C_TEXT, 1160);
+    if (v->busy) spinner(1222, 644, 12, t, C_ACCENT);
+    if (v->confirming) {
+        rect(0, 0, W, H, 0, 174);
+        const int dw = 680, dh = 220, dx = (W - dw) / 2, dy = (H - dh) / 2;
+        rrect_grad(dx, dy, dw, dh, 8, C_PAGE_TOP, C_PAGE_BOT, 1, 255);
+        rrect_line(dx, dy, dw, dh, 8, 1, C_ACCENT, 180);
+        text(dx + 30, dy + 50, "Confirm Workshop changes", 24, BOLD, C_TEXT);
+        paragraph(dx + 30, dy + 94, dw - 60, v->notice, 20, 28, C_TEXT2, 3);
+        int cy = dy + dh - 32;
+        int x = dialog_hint(dx + dw - 30, cy, "B", "Back");
+        dialog_hint(x, cy, "A", "Continue");
+    } else draw_workshop_hints(v);
+}
+#endif
+
 void isaac_launcher_release(void) {
     free(g_bg);
     g_bg = NULL;
@@ -952,12 +1339,25 @@ void isaac_launcher_release(void) {
 
 void isaac_launcher_draw(uint32_t *pixels, int stride, const isaac_launcher_view *v) {
     load_buttons();
-    if (!g_bg && (g_bg = malloc((size_t)W * H * 4))) {
+    int workshop = 0;
+#ifndef ISAAC_NO_STEAM
+    workshop = v->workshop != NULL;
+#endif
+    if (!g_bg) {
+        g_bg = malloc((size_t)W * H * 4);
+        g_bg_workshop = -1;
+    }
+    if (g_bg && g_bg_workshop != workshop) {
         g_px = g_bg;
         g_stride = W;
         g_cw = W;
         g_ch = H;
-        draw_background();
+#ifndef ISAAC_NO_STEAM
+        if (workshop) draw_workshop_background();
+        else
+#endif
+            draw_background();
+        g_bg_workshop = workshop;
     }
     for (int y = 0; y < H; ++y) {
         if (g_bg) memcpy(pixels + (size_t)y * stride, g_bg + (size_t)y * W, (size_t)W * 4);
@@ -967,6 +1367,12 @@ void isaac_launcher_draw(uint32_t *pixels, int stride, const isaac_launcher_view
     g_stride = stride;
     g_cw = W;
     g_ch = H;
+#ifndef ISAAC_NO_STEAM
+    if (v->workshop) {
+        draw_workshop(v->workshop, v->t);
+        return;
+    }
+#endif
     draw_files_notice(v);
     draw_play_bar(v);
 #ifdef ISAAC_NO_STEAM
@@ -980,6 +1386,8 @@ void isaac_launcher_draw(uint32_t *pixels, int stride, const isaac_launcher_view
     else if (v->signin != ISAAC_SIGNIN_NONE) draw_signin(v);
     else if (v->signout != ISAAC_SIGNOUT_NONE) draw_signout(v);
 #endif
+    if (v->options) draw_options(v->options);
+    else if (v->about_open) draw_about();
 }
 
 /* ---- the in-game Steam Cloud panel -------------------------------------------- */

@@ -41,6 +41,10 @@ static void base(isaac_launcher_view *v) {
     for (int i = 0; i < ISAAC_STEAMSYNC_SLOTS; ++i) v->slot[i] = ISAAC_LAUNCHER_SLOT_PENDING;
     snprintf(v->account, sizeof v->account, "Steam \xc2\xb7 \xe2\x80\xa6" "1234567");
     v->t = 0.35f;
+    v->options_available = 1;
+#ifndef ISAAC_NO_STEAM
+    v->workshop_available = 1;
+#endif
     v->files = ISAAC_FILES_OK;
     snprintf(v->files_summary, sizeof v->files_summary, "22 of 22 found");
 }
@@ -109,6 +113,14 @@ static int states(const char *dir) {
     base(&v);
     v.phase = ISAAC_LAUNCHER_LAUNCHING;
     bad |= save(dir, "nosteam-3-launching", &v);
+    isaac_options_menu options = {0};
+    isaac_options_defaults(&options);
+    base(&v);
+    v.options = &options;
+    bad |= save(dir, "nosteam-4-options", &v);
+    v.options = NULL;
+    v.about_open = 1;
+    bad |= save(dir, "nosteam-5-about", &v);
     return bad;
 }
 #endif
@@ -263,6 +275,107 @@ int main(int argc, char **argv) {
     BAD_FILES(v);
     bad |= save(argv[2], "17-files-missing", &v);
 
+    isaac_options_menu options = {0};
+    isaac_options_defaults(&options);
+    base(&v);
+    v.phase = ISAAC_LAUNCHER_DONE;
+    v.options = &options;
+    bad |= save(argv[2], "18-game-options", &v);
+    v.options = NULL;
+    v.about_open = 1;
+    bad |= save(argv[2], "19-about", &v);
+    v.about_open = 0;
+
+    v.options = NULL;
+
+    workshop_view workshop = {
+        .tab = WORKSHOP_BROWSE, .grid = 1, .row_count = WORKSHOP_GRID_CARDS, .signed_in = 1, .selected = 1,
+        .list_count = WORKSHOP_PAGE,
+        .hints = {[WORKSHOP_HINT_A] = "Open", [WORKSHOP_HINT_X] = "Sort",
+                  [WORKSHOP_HINT_Y] = "Search", [WORKSHOP_HINT_MINUS] = "Tag",
+                  [WORKSHOP_HINT_SCROLL] = "Navigate", [WORKSHOP_HINT_PAGES] = "Pages",
+                  [WORKSHOP_HINT_TABS] = "Tabs", [WORKSHOP_HINT_B] = "Go Back"},
+    };
+    v.workshop = &workshop;
+    snprintf(workshop.heading, sizeof workshop.heading, "Browse");
+    snprintf(workshop.context, sizeof workshop.context, "Most subscribed  •  Page 1  •  68 results  •  Tag Lua");
+    snprintf(workshop.search, sizeof workshop.search, "Search  items");
+    workshop.rows[0] = (workshop_row){.title = "Isaac Workshop example", .detail = "Author  •  1.6 MiB  •  2026-10-27  •  Installed"};
+    workshop.rows[1] = (workshop_row){.title = "Item catalogue", .detail = "Author  •  3.2 MiB  •  2026-10-22  •  Update available"};
+    workshop.rows[2] = (workshop_row){.title = "Boss room layout", .detail = "Author  •  416 KiB  •  2026-10-19"};
+    const char *titles[] = {"Character portraits", "Room tracker", "Challenge notes", "Co-op markers",
+                            "Boss health display", "Item collection", "Door indicators", "Floor map"};
+    for (int i = 3; i < workshop.row_count; ++i) {
+        snprintf(workshop.rows[i].title, sizeof workshop.rows[i].title, "%s", titles[i - 3]);
+        snprintf(workshop.rows[i].detail, sizeof workshop.rows[i].detail,
+                 "Workshop author  •  %d KiB  •  2026-10-12  •  %d subscribed", i * 42, 1000 - i * 13);
+    }
+    static workshop_thumb tile[WORKSHOP_GRID_CARDS];
+    for (int i = 0; i < workshop.row_count; ++i) {
+        tile[i].width = 256;
+        tile[i].height = 144;
+        for (int y = 0; y < 144; ++y)
+            for (int x = 0; x < 256; ++x)
+                tile[i].pixels[y * 256 + x] = 0xff000000u | (uint32_t)(y + 18 * i) << 16 |
+                    (uint32_t)(x / 2 + 25 * ((x / 12 + y / 12) & 1)) << 8 | (uint32_t)(20 * i + x / 4);
+        workshop.rows[i].thumb = &tile[i];
+    }
+    bad |= save(argv[2], "30-workshop-browse", &v);
+    workshop.busy = 1;
+    workshop.done = 1048576;
+    workshop.total = 3145728;
+    memset(workshop.hints, 0, sizeof workshop.hints);
+    workshop.hints[WORKSHOP_HINT_PLUS] = "Queue mod";
+    workshop.hints[WORKSHOP_HINT_SCROLL] = "Navigate";
+    workshop.hints[WORKSHOP_HINT_B] = "Cancel Queue";
+    snprintf(workshop.notice, sizeof workshop.notice, "Installing Item catalogue • 2 queued");
+    bad |= save(argv[2], "36-workshop-queue", &v);
+
+
+    workshop = (workshop_view){.tab = WORKSHOP_BROWSE, .detail = 1, .signed_in = 1,
+        .hints = {[WORKSHOP_HINT_A] = "Update", [WORKSHOP_HINT_X] = "Remove",
+                  [WORKSHOP_HINT_Y] = "Review dependencies", [WORKSHOP_HINT_B] = "Back"}};
+    snprintf(workshop.heading, sizeof workshop.heading, "Item catalogue");
+    snprintf(workshop.context, sizeof workshop.context, "Workshop author  •  3.2 MiB  •  2026-10-22  •  #3181120001");
+    snprintf(workshop.search, sizeof workshop.search, "Lua, Items");
+    snprintf(workshop.description, sizeof workshop.description,
+             "Adds a catalogue of discovered items to the game's menus.\n%cA\nBrowse the catalogue from the menu.",
+             WORKSHOP_MEDIA_MARKER);
+    workshop_animation animation = {.frames = {&tile[1], &tile[3]}, .delay = {200, 300}, .count = 2};
+    workshop.media[0] = &animation;
+    workshop.thumb = &tile[1];
+    snprintf(workshop.dependencies, sizeof workshop.dependencies,
+             "Update available  •  1 required, 1 missing\n3181120002 (missing)");
+    bad |= save(argv[2], "31-workshop-details", &v);
+    workshop.confirming = 1;
+    snprintf(workshop.notice, sizeof workshop.notice, "Install this mod locally?");
+    bad |= save(argv[2], "35-workshop-confirm-install", &v);
+
+    workshop = (workshop_view){.tab = WORKSHOP_SYNC, .row_count = 2, .list_count = 2, .signed_in = 1,
+        .hints = {[WORKSHOP_HINT_A] = "Select / skip", [WORKSHOP_HINT_X] = "Continue",
+                  [WORKSHOP_HINT_B] = "Discard"}};
+    snprintf(workshop.heading, sizeof workshop.heading, "Review changes");
+    snprintf(workshop.context, sizeof workshop.context, "2 changes  •  1 selected");
+    workshop.rows[0] = (workshop_row){.title = "Item catalogue", .detail = "Selected  •  Update on Switch"};
+    workshop.rows[1] = (workshop_row){.title = "Boss room layout", .detail = "Skipped  •  Remove from Switch"};
+    bad |= save(argv[2], "32-workshop-sync-review", &v);
+
+    workshop = (workshop_view){.tab = WORKSHOP_BROWSE, .detail = 1, .signed_in = 1, .busy = 1,
+                               .done = 1048576, .total = 3145728,
+                               .hints = {[WORKSHOP_HINT_B] = "Cancel"}};
+    snprintf(workshop.heading, sizeof workshop.heading, "Item catalogue");
+    snprintf(workshop.description, sizeof workshop.description, "Adds a catalogue of discovered items to the game's menus.");
+    snprintf(workshop.notice, sizeof workshop.notice, "Downloading and verifying mod...");
+    bad |= save(argv[2], "33-workshop-downloading", &v);
+
+    workshop = (workshop_view){.tab = WORKSHOP_BROWSE,
+        .hints = {[WORKSHOP_HINT_Y] = "Steam QR sign-in", [WORKSHOP_HINT_TABS] = "Tabs",
+                  [WORKSHOP_HINT_B] = "Go Back"}};
+    snprintf(workshop.heading, sizeof workshop.heading, "Browse");
+    snprintf(workshop.description, sizeof workshop.description, "Sign in to browse the Steam Workshop.");
+    bad |= save(argv[2], "34-workshop-signed-out", &v);
+    v.workshop = NULL;
+
     /* The Switch frees launcher resources before initializing the in-game panel. */
     isaac_launcher_release();
     if (isaac_launcher_set_font(font, (size_t)n)) return 3;
@@ -326,7 +439,7 @@ def main() -> int:
     flags = ["cc", "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Wno-unused-parameter",
              "-fsanitize=address,undefined", "-DISAAC_LAUNCHER_PREVIEW", "-I", str(NATIVE), "-I", str(OUT)]
     # The screen of a --no-steam build, with what it links: no native_qr.c.
-    sources = [str(src), str(NATIVE / "native_launcher.c")]
+    sources = [str(src), str(NATIVE / "native_launcher.c"), str(NATIVE / "native_options.c")]
     variants = ((exe, sources + [str(NATIVE / "native_qr.c")], []),
                 (OUT / "preview-nosteam", sources, ["-DISAAC_NO_STEAM=1"]))
     for binary, sources, defines in variants:

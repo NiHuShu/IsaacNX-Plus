@@ -125,6 +125,8 @@ def image_ref(override: str | None = None) -> str:
     env = os.environ.get("ISAAC_BUILDER_IMAGE")
     if env:
         return env
+    if source_tree():
+        return "isaacnx-builder:1.9.7.19"
     if IMAGE_INFO.get("digest"):
         return "%s@%s" % (IMAGE_INFO["repository"], IMAGE_INFO["digest"])
     return IMAGE_INFO["local"]

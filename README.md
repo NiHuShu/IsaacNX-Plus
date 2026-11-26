@@ -1,103 +1,100 @@
-# Isaac Switch Native
+# IsaacNX+
 
-A native Nintendo Switch (libnx homebrew) host for **The Binding of Isaac:
-Repentance+ PC v1.9.7.17**, built on the static recompilation of
-[the-browsing-of-isaac](https://github.com/xreamm1/the-browsing-of-isaac).
-The same host also runs on x86-64 Linux.
+Play **The Binding of Isaac: Repentance+** on a homebrew Nintendo Switch, with performance settings in the launcher and Steam Workshop mods you can manage right on the console.
 
-The game is the real PC code, recompiled ahead of time from the Windows
-executable into C and then compiled for the Switch's ARM CPU. It is not an
-emulator and not a remake. On a Switch running homebrew:
+IsaacNX+ is a fork of **isaac-switch-native** for the PC release **v1.9.7.19**. The project was built with AI assistance. Earlier versions were tested on a real Switch, including downloading and installing Workshop mods. [Original Switch port](https://github.com/antoniotorres02/isaac-switch-native)
 
-- the full game plays, with graphics (EGL/GLES3 on Mesa) and sound (OpenAL);
-- your PC saves carry over, including the run in progress;
-- Steam Workshop mods work, Lua ones included, and the game's Mods menu turns
-  them on and off;
-- the buttons drawn on screen are the Switch ones, A accepts and B goes back
-  in menus (both can be turned off in `settings.ini`), and holding +
-  restarts a run;
-- a launch screen checks that the game's files are on the card before it offers
-  Play;
-- optionally, the console signs in to Steam with a QR code from the Steam app,
-  downloads your Steam Cloud saves before you play and uploads them when the game
-  closes or from an in-game panel (hold − and press +), with no PC involved. It is an
-  unofficial Steam client: read the [risks](STEAM-CLOUD.md#risk). It is left out
-  unless you ask for it.
+> **Bring your own game.** This repository contains source code, documentation, and interface screenshots. It provides no game files, executables, or prebuilt game packages. Build from your own purchased copy and a compatible DRM-free executable.
+>
+> **Unofficial project.** Steam, Valve, Nintendo, and Nicalis did not develop, sponsor, or endorse this fork.
 
-**This repository contains no game code, data or assets, and no tool or
-method for removing the game's copy protection.** You need your own
-purchased copy of the game, and you build everything yourself from it.
+## Highlights
 
-## Build it
+- **Performance settings.** Press **X** on the launcher to change graphics settings that Isaac usually keeps in configuration files. The performance preset uses 1× render scale and turns off bloom, shockwaves, water light patterns, and room color effects. Lighting and water surfaces stay on. Fullscreen starts off for a wider view in fresh setups. Choose **30 FPS** under **Frame skip** to give crowded rooms more time per game update. **Skip water reflections** is an experimental, opt-in setting for flooded rooms. [Game Options](PLAYING.md#game-options)
+- **Workshop on Switch.** Browse, search, and filter mods in a two-column grid with cached pages and animated previews. Open a mod to read its description, see images and GIFs, and review its dependencies. Download, update, enable, disable, or remove local mods without a PC once the build is installed. [Workshop controls](PLAYING.md#steam-workshop-on-switch)
+- **Optional subscription sync.** **Sync Steam Mods** shows the differences between your Steam subscriptions and the mods on your SD card. Review the changes, pick the ones you want, then confirm. Installing or removing a local mod leaves your Steam subscriptions alone.
+- **Steam Cloud saves.** Use the original port’s Steam QR sign-in to sync saves. You can also build without Steam features and keep playing with local saves and manually copied mods. [Steam Cloud guide](STEAM-CLOUD.md)
+- **Easier setup.** The included Isaac Switch Builder guides you through building the game and copying it to your SD card. Your build uses the Isaac icon from your own executable in the Homebrew Menu. [Isaac Switch Builder guide](host/builder/README.md)
 
-**[Isaac Switch Builder](host/builder/README.md)** is a program for Windows and
-Linux that does the whole build from your Steam install, with a window that explains
-each step: it finds the game, suggests the files it needs, installs or opens Docker
-Desktop if needed, shows the progress, and copies the result to the SD card.
-Download it from the [latest release](https://github.com/antoniotorres02/isaac-switch-native/releases/latest).
-**Linux is tested; Windows is not tested on a real machine yet.**
-
-> **It needs the game's executable without Steam's DRM.** Neither the program nor
-> this repository removes it or explains how. Whether and how you do it is your
-> decision and your responsibility under the law that applies to you.
-
-The same build with one Docker command is in [GUIDE.md](GUIDE.md).
-
-## Documentation
-
-| Document | What it covers |
+| Launcher | Workshop install queue |
 | --- | --- |
-| [host/builder/README.md](host/builder/README.md) | The builder program: download, the six pages, the command line, how it works |
-| [GUIDE.md](GUIDE.md) | The same build with Docker and one command |
-| [BUILDING.md](BUILDING.md) | Requirements, the upstream pipeline, the PC build and the Switch NRO, by hand |
-| [PLAYING.md](PLAYING.md) | Installing on the Switch, controls, `settings.ini`, PC saves, adding and toggling mods, playing on PC, troubleshooting |
-| [STEAM-CLOUD.md](STEAM-CLOUD.md) | Steam sign-in and Cloud saves from the console: how it works, what was measured, what does not work yet, the risks, and building without it |
-| [DESIGN.md](DESIGN.md) | How the host works, what was changed and why, and what was measured on hardware |
+| ![IsaacNX+ launcher with the larger Repentance+ logo and reordered controls](docs/screenshots/launcher-v19719.jpg) | ![Workshop grid with a download progress bar and queued mods](docs/screenshots/workshop-queue-v19719.jpg) |
 
-## Inspiration and credits
+Interface previews rendered on a PC. The in-game screenshots below are from earlier Switch builds.
 
-This project exists because of
-**[the-browsing-of-isaac](https://github.com/xreamm1/the-browsing-of-isaac)
-by xreamm**, which made Repentance+ playable in a browser tab by recompiling
-its Windows executable to WebAssembly. Its pipeline (Ghidra export, the
-P-code → C lifter, the memory image, the Win32/GL/audio host and the mod
-support) does the hard part. This repository adds a native host for that
-lifted C: PC and Switch platform layers, the fixes the native build needed
-(listed in [DESIGN.md](DESIGN.md#corrections-to-the-upstream-pipeline)) and
-the Switch-specific features. It works on a checkout of upstream at a pinned
-commit, with a one-line local change to its PE hash check and a few patches to
-its host sources (`host/patches/`).
+## Build and play
 
-Also used or built on:
+You need a Switch that can already run homebrew, an SD card, a computer with [Docker](https://docs.docker.com/get-docker/) and Python 3, and your own purchased copy of **Isaac with Repentance+ v1.9.7.19**. The build also requires a compatible **DRM-free `isaac-ng.exe`**. If you already own the game on Steam, setup is straightforward once you have the supported executable. The builder checks that the executable matches the required version.
 
-- [REPENTOGON](https://github.com/TeamREPENTOGON/REPENTOGON): function
-  signatures, through upstream;
-- [Ghidra](https://github.com/NationalSecurityAgency/ghidra) and
-  [pypcode](https://github.com/angr/pypcode): analysis and lifting;
-- [devkitPro](https://devkitpro.org/) (devkitA64, libnx, switch-tools) and
-  its portlibs, including [Mesa](https://www.mesa3d.org/) and
-  [OpenAL Soft](https://github.com/kcat/openal-soft);
-- [Lua 5.3.3](https://www.lua.org/), [GLFW](https://www.glfw.org/) for the
-  PC window, and [Emscripten](https://emscripten.org/) for upstream's
-  pipeline;
-- [Atmosphère](https://github.com/Atmosphere-NX/Atmosphere),
-  [Sphaira](https://github.com/ITotalJustice/sphaira) and
-  [sys-botbase](https://github.com/olliz0r/sys-botbase), the environment the
-  hardware tests ran in.
+> **Back up your saves before installing, importing, or syncing them.** I’m not responsible for lost progress.
 
-*The Binding of Isaac: Repentance+* is by Edmund McMillen and Nicalis. This
-project is not affiliated with or endorsed by them, by Nintendo, by Valve or
-by xreamm.
+1. Download or clone this repository and open its folder in a terminal. On Linux, start the included builder with the command below. See the [Builder guide](host/builder/README.md) for Windows, where you can use `py -3` in place of `python3`.
+2. In the builder, select your game folder and compatible executable. Choose a work folder, keep **Include Steam Workshop and Steam Cloud** enabled if you want Steam features, and start the build. Turn that checkbox off to make a build without Steam support.
+3. Use the builder’s **Copy to SD** option, or copy the resulting `sd-card` folder’s contents to the root of your SD card. Run the generated installer for a HOME Menu build, or open the NRO from the Homebrew Menu in Application mode. [SD card setup and controls](PLAYING.md#installing-on-the-switch)
 
-## License
+```sh
+python3 host/builder/isaac_switch_builder.py gui --steam
+```
 
-The code in this repository is free software under the
-[GNU General Public License v3.0 or later](LICENSE), the same license as
-the-browsing-of-isaac, whose code it is built and linked with.
+For a build without the window, run this from the repository folder with your own paths:
 
-The license covers this project's own work only. It gives no rights to *The
-Binding of Isaac: Repentance+*: the game's code, assets and name belong to
-their owners. Anything you build with this repository from your copy of the
-game (the lifted C, the memory image, the PC executable, the NRO) contains
-material derived from the game. Keep it for your own use and do not
-distribute it.
+```sh
+python3 host/builder/isaac_switch_builder.py build \
+  --folder ./build/isaacnx \
+  --game "/path/to/The Binding of Isaac Rebirth" \
+  --exe "/path/to/isaac-ng.unpacked.exe" \
+  --steam --format nro
+```
+
+Omit `--steam` to build without Workshop and Cloud. The builder uses the slim tools image, about **1 GB**, and builds it from this checkout on first use. Allow at least **4 GiB of build memory** and **6 GiB of free disk** for the work folder. The example selects a homebrew NRO. Use `--format nsp` for the upstream HOME Menu installer workflow. [Docker-only guide](GUIDE.md) · [Manual build guide](BUILDING.md)
+
+Your game executable and data stay on your computer. Keep the NRO and the generated game files for personal use. This repository contains source code and documentation.
+
+## On the Switch
+
+| Control | What it opens |
+| --- | --- |
+| **A** | Play |
+| **Y** | Workshop in Steam-enabled builds |
+| **X** | Game Options. Hold up or down to scroll. |
+| **−** | Steam QR sign-in or sign out |
+| **+** | About |
+| **B** | Exit |
+
+Press **+** on a Browse card to install it and stay on the grid. Keep browsing and press **+** on other cards to queue them. Downloads run one at a time, with progress shown on the grid. Open **Sync** to review and confirm changes to Steam subscriptions.
+
+<details>
+<summary>More screenshots</summary>
+
+- [Repentance+ title screen](docs/screenshots/repentance-plus-title-screen.jpg)
+- [Game Options](docs/screenshots/options-v19719.jpg)
+- [About](docs/screenshots/about-v19719.jpg)
+- [Workshop item details](docs/screenshots/workshop-details-v19719.jpg)
+- [Manual Workshop subscription sync](docs/screenshots/workshop-sync-v19719.jpg)
+- [In-game Mods menu](docs/screenshots/in-game-mod-menu.jpg)
+- [External Item Descriptions in a run](docs/screenshots/external-item-descriptions.jpg)
+- [Default wide view](docs/screenshots/gameplay-wide-view.jpg) · [Fullscreen zoomed view](docs/screenshots/gameplay-fullscreen-zoom.jpg)
+
+</details>
+
+The launcher uses the logo from your game files and the official Steam library banner when available. You can also supply Steam’s Motiva Sans font. [Launcher artwork and font](PLAYING.md#launcher-artwork-and-font)
+
+## Known issues
+
+- With mods enabled, the game can take a while to start. The screen can stay black while it loads.
+- Some boss-ending cutscenes still play at just a few frames per second on Switch.
+- Vade Retro room clear in Greedier still needs a Switch test on v1.9.7.19.
+- Music can stop in a room. Moving to another room restores it.
+- Online co-op is unavailable in this DRM-free build. Workshop and Cloud saves are available in Steam-enabled builds.
+
+For help with saves or mods, see the [Playing guide](PLAYING.md), the [Steam Cloud guide](STEAM-CLOUD.md), or the [Workshop guide](STEAM-WORKSHOP.md). If you report a problem, include your Switch model, game version, and what you were doing when it happened.
+
+## Credits and license
+
+- **Antonio Javier Torres Bordón (antoniotorres02) and Don Claudio** for the original Switch port and the foundation for IsaacNX+. The original project also provides Isaac Switch Builder. [isaac-switch-native](https://github.com/antoniotorres02/isaac-switch-native)
+- **chiikabu** for the original browser recompilation and **xreamm** for the upstream checkout used by the Switch port. [Original the-browsing-of-isaac](https://github.com/chiikabu/the-browsing-of-isaac) · [Pinned upstream project](https://github.com/xreamm1/the-browsing-of-isaac)
+- **Edmund McMillen and Nicalis** for *The Binding of Isaac: Repentance+*. The game and its artwork belong to their respective owners.
+- **Gioele Casazza** for the launcher’s Switch button graphics, licensed under CC BY 4.0. [Icon pack and attribution](host/launcher/icons/CREDITS.md)
+- **Bane Sullivan** for the README writing guide. [How to write a good README](https://github.com/banesullivan/README)
+
+IsaacNX+ uses the original project’s **GNU General Public License v3.0 or later**. The license covers the project’s code. [LICENSE](LICENSE)

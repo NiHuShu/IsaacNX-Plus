@@ -69,7 +69,10 @@ PROFILES = {
 
 # What --no-steam leaves out. Nothing outside native_switch.c calls these, and
 # it compiles those calls out with ISAAC_NO_STEAM.
-STEAM_SOURCES = {"native_steamcm.c", "native_steamproto.c", "native_steamsync.c", "native_steamauth.c",
+WORKSHOP_SOURCES = {"native_workshop_browser.c", "native_workshop_media.c",
+                    "native_steamworkshop.c", "native_steamcdn.c",
+                    "native_modmanager.c", "native_modsync.c"}
+STEAM_SOURCES = WORKSHOP_SOURCES | {"native_steamcm.c", "native_steamproto.c", "native_steamsync.c", "native_steamauth.c",
                  "native_qr.c", "native_sha1.c", "native_zip.c"}
 
 # Nintendo Switch NRO: devkitA64/libnx inside the SDK image pinned below
@@ -100,12 +103,17 @@ COMMON = ["-fno-strict-aliasing", "-fwrapv", "-DRECOMP_MEM_IDENTITY=0",
 #   0xa30e30 (0xa178d0 in 1.9.7.17), the engine's stream open (the upstream probe wrapper): the path
 #   is at [ESP+4]; native_stream_path.c collapses a doubled '/' in it.
 LIFT_HOOKS = [
+    # Skip recording the reflection geometry after the room selects mode 5.
+    # The shared submission and framebuffer cleanup still run.
+    (None, "  RECOMP_VA(0x82a0a7u);\n",
+     "  if (isaac_native_skip_water_reflection()) goto L_0082a200;\n"),
     (None, "  RECOMP_VA(0x410043u);\n", "  isaac_hook_anm2_text(ESP);\n"),
     (None, "  if (on) isaac_probe_str(0xa30e30u, \"stream open\", MEMR32(s->ESP + 4u));\n",
      "  isaac_hook_stream_path(s->ESP);\n"),
 ]
 HOOK_DECLS = ("#include <stdint.h>\nvoid isaac_hook_anm2_text(uint32_t esp);\n"
-              "void isaac_hook_stream_path(uint32_t esp);\n")
+              "void isaac_hook_stream_path(uint32_t esp);\n"
+              "int isaac_native_skip_water_reflection(void);\n")
 
 # Replacements in the generated files: (file, old, new); old must occur once.
 #   dispatch_tbl.c, the cache hit of every indirect call: the per-entry census
@@ -272,7 +280,7 @@ def main() -> int:
     ap.add_argument("--extra-patches", type=Path,
                     help="also apply this directory's *.patch after patches/ (work in progress; use with --out)")
     ap.add_argument("--no-steam", action="store_true",
-                    help="leave out Steam Cloud, sign-in, ownership checks and their network code "
+                    help="leave out Steam Cloud, Workshop, sign-in, ownership checks and their network code "
                          "(variant <profile>-nosteam unless --tag says otherwise)")
     ap.add_argument("--lift-opt", action="store_true",
                     help="rewrite the lifted TUs with lift_opt.py before compiling them")
@@ -393,7 +401,7 @@ def main() -> int:
             continue
         if s.name == "native_window.c" and (not real_gl or switch):
             continue
-        if args.no_steam and s.name in STEAM_SOURCES:
+        if (args.no_steam and s.name in STEAM_SOURCES) or (not switch and s.name in WORKSHOP_SOURCES):
             continue
         objs.append(add(s, host_flags, "native_"))
     lift_flags = ["-std=gnu11", "-w"] + prof["lift"] + COMMON + inc + args.lift_flags.split()
@@ -432,7 +440,9 @@ def main() -> int:
                   # the launch screen's text (native_launcher.c); FreeType and
                   # HarfBuzz need each other
                   "-Wl,--start-group", "-lfreetype", "-lharfbuzz", "-Wl,--end-group",
-                  "-lpng16", "-lbz2", "-lstdc++", "-lnx", "-lpthread", "-lz", "-lm"])
+                  "-lpng16", "-lbz2"]
+               + ([] if args.no_steam else ["-ljpeg", "-llzma", "-lzstd"])
+               + ["-lstdc++", "-lnx", "-lpthread", "-lz", "-lm"])
     else:
         exe = out / variant / "isaac_native"
         r = sh([args.cc] + prof["ld"] + args.ld_flags.split() + ["-rdynamic", "-o", str(exe)] + [str(o) for o in objs]
