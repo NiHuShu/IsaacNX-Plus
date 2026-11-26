@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 #include "native_qr.h"
+#include "native_options.h"
 #include "native_steamsync.h"
 
 #define ISAAC_LAUNCHER_W 1280
@@ -86,7 +87,8 @@ typedef struct {
     int files;                          /* ISAAC_FILES_* */
     char files_summary[32];             /* "22 of 22 found", "4 missing" */
     char files_detail[192];             /* which ones, and what to do */
-    int about_open;
+    const isaac_options_menu *options;
+    int options_available, about_open;
     float t;                            /* seconds, for the animations */
 } isaac_launcher_view;
 
