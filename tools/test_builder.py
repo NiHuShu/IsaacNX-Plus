@@ -248,6 +248,7 @@ def test_image_ref(tmp: Path) -> None:
     source_tree = dockerctl.source_tree
     env = os.environ.pop("ISAAC_BUILDER_IMAGE", None)
     try:
+        assert dockerctl.image_ref() == "isaacnx-builder:1.9.7.19"
         dockerctl.source_tree = lambda: None
         dockerctl.IMAGE_INFO.update(digest="")
         assert dockerctl.image_ref() == dockerctl.IMAGE_INFO["local"]

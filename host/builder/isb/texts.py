@@ -216,8 +216,7 @@ T: dict[str, tuple[str, str]] = {
                            "8 GiB of memory. You can leave it working: the computer will not sleep meanwhile."),
     "page.options.folder": ("Carpeta del resultado:", "Result folder:"),
     "page.options.advanced": ("Opciones avanzadas", "Advanced options"),
-    "page.options.steam": ("Incluir Steam Cloud (sincronizar partidas desde la consola)",
-                           "Include Steam Cloud (sync saves from the console)"),
+    "page.options.steam": ("Incluir Steam Workshop y Steam Cloud", "Include Steam Workshop and Steam Cloud"),
     "page.options.steam_warning": ("La consola se conecta a Steam como un cliente NO oficial, con un token que "
                                    "queda en texto plano en la SD. Lee STEAM-CLOUD.md antes de activarlo.",
                                    "The console signs in to Steam as an UNOFFICIAL client, with a token kept in "
