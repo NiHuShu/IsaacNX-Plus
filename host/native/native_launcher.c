@@ -797,6 +797,7 @@ static void draw_footer(const isaac_launcher_view *v) {
         { "−", v->account_action == ISAAC_ACCOUNT_SIGN_IN ? "Sign In" : "Sign Out",
           v->account_action != ISAAC_ACCOUNT_NONE },
 #endif
+        { "X", "Options", v->options_available },
         { "A", v->phase == ISAAC_LAUNCHER_FAILED ? "Play anyway" : "Play",
           v->files != ISAAC_FILES_BAD && v->phase != ISAAC_LAUNCHER_SYNCING && v->phase != ISAAC_LAUNCHER_LAUNCHING },
     };
@@ -833,6 +834,31 @@ static void draw_about(void) {
     text(x + 30, y + 264, "github.com/NiHuShu/IsaacNX-Plus", 17, REG, C_ACCENT);
     rect(x + 30, y + h - 63, w - 60, 1, 0x3a4b5e, 180);
     controller_hint(x + w - 32, y + h - 33, "B", "+", "Go Back");
+}
+
+static void draw_options(const isaac_options_menu *menu) {
+    rect(0, 0, W, H, 0, 186);
+    rrect_grad(220, 56, 840, 606, 8, C_PAGE_TOP, C_PAGE_BOT, 1, 255);
+    rrect_line(220, 56, 840, 606, 8, 1, C_ACCENT, 180);
+    text(255, 104, "Game Options", 29, BOLD, C_TEXT);
+    text(255, 133, "Graphics and settings applied at the next game launch", 16, REG, C_TEXT2);
+    for (int i = 0; i < ISAAC_OPTION_COUNT; ++i) {
+        const isaac_option_spec *spec = &isaac_option_specs[i];
+        int y = 148 + i * 41, active = menu->selected == i;
+        rrect(252, y, 776, 39, 4, active ? 0x285985 : C_PANEL, active ? 255 : 82);
+        text(263, y + 19, spec->label, 17, BOLD, C_TEXT);
+        text(263, y + 35, spec->detail, 14, REG, C_TEXT2);
+        char value[32];
+        if (spec->max == 1) snprintf(value, sizeof value, "%s", menu->values[i] ? "On" : "Off");
+        else snprintf(value, sizeof value, "%d×", menu->values[i]);
+        text(1010 - text_w(value, 20, BOLD, 0), y + 29, value, 20, BOLD, C_TEXT);
+    }
+    if (menu->status[0]) text(255, 618, menu->status, 15, REG, C_WARN);
+    int x = dialog_hint(1028, 636, "B", "Discard");
+    x = dialog_hint(x, 636, "A", "Save");
+    x = dialog_hint(x, 636, "X", "Performance defaults");
+    x = controller_hint(x, 636, "<", ">", "Change");
+    controller_hint(x, 636, "↑", "↓", "Select");
 }
 
 #ifndef ISAAC_NO_STEAM
@@ -996,7 +1022,8 @@ void isaac_launcher_draw(uint32_t *pixels, int stride, const isaac_launcher_view
     else if (v->signin != ISAAC_SIGNIN_NONE) draw_signin(v);
     else if (v->signout != ISAAC_SIGNOUT_NONE) draw_signout(v);
 #endif
-    if (v->about_open) draw_about();
+    if (v->options) draw_options(v->options);
+    else if (v->about_open) draw_about();
 }
 
 /* ---- the in-game Steam Cloud panel -------------------------------------------- */

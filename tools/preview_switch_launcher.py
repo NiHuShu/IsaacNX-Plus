@@ -41,6 +41,7 @@ static void base(isaac_launcher_view *v) {
     for (int i = 0; i < ISAAC_STEAMSYNC_SLOTS; ++i) v->slot[i] = ISAAC_LAUNCHER_SLOT_PENDING;
     snprintf(v->account, sizeof v->account, "Steam \xc2\xb7 \xe2\x80\xa6" "1234567");
     v->t = 0.35f;
+    v->options_available = 1;
     v->files = ISAAC_FILES_OK;
     snprintf(v->files_summary, sizeof v->files_summary, "22 of 22 found");
 }
@@ -109,6 +110,12 @@ static int states(const char *dir) {
     base(&v);
     v.phase = ISAAC_LAUNCHER_LAUNCHING;
     bad |= save(dir, "nosteam-3-launching", &v);
+    isaac_options_menu options = {0};
+    isaac_options_defaults(&options);
+    base(&v);
+    v.options = &options;
+    bad |= save(dir, "nosteam-4-options", &v);
+    v.options = NULL;
     v.about_open = 1;
     bad |= save(dir, "nosteam-5-about", &v);
     return bad;
@@ -265,6 +272,13 @@ int main(int argc, char **argv) {
     BAD_FILES(v);
     bad |= save(argv[2], "17-files-missing", &v);
 
+    isaac_options_menu options = {0};
+    isaac_options_defaults(&options);
+    base(&v);
+    v.phase = ISAAC_LAUNCHER_DONE;
+    v.options = &options;
+    bad |= save(argv[2], "18-game-options", &v);
+    v.options = NULL;
     v.about_open = 1;
     bad |= save(argv[2], "19-about", &v);
     v.about_open = 0;
@@ -332,7 +346,7 @@ def main() -> int:
     flags = ["cc", "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Wno-unused-parameter",
              "-fsanitize=address,undefined", "-DISAAC_LAUNCHER_PREVIEW", "-I", str(NATIVE), "-I", str(OUT)]
     # The screen of a --no-steam build, with what it links: no native_qr.c.
-    sources = [str(src), str(NATIVE / "native_launcher.c")]
+    sources = [str(src), str(NATIVE / "native_launcher.c"), str(NATIVE / "native_options.c")]
     variants = ((exe, sources + [str(NATIVE / "native_qr.c")], []),
                 (OUT / "preview-nosteam", sources, ["-DISAAC_NO_STEAM=1"]))
     for binary, sources, defines in variants:
