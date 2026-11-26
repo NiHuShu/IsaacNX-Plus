@@ -15,3 +15,26 @@ build/
 *.segs.bin
 __pycache__/
 *.pyc
+
+# Local build work, game data, and Steam authentication.
+/upstream/
+/out/
+/logs/
+/stamps/
+/.cache/
+/.home/
+.scratch/
+guest/
+romfs/
+saves/
+save_backups/
+steam-token.txt
+session.json
+*.segs.bin*
+isaac.mem*
+isaac.data.wasm*
+*.nsp
+*.xci
+
+# User-provided artwork and Steam font for local builds.
+/launcher-art/
