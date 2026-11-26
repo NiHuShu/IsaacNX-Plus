@@ -61,7 +61,7 @@ Start the builder as described above. It opens a six-page guide:
      (`sudo systemctl start docker`, or `sudo usermod -aG docker $USER`);
    - too little memory, on Windows: **Open .wslconfig**, explained step by step;
    - then the tool image (downloaded once, ~230 MB; ~1 GB on disk).
-4. **Ready**: where the result goes, **Check everything**, and **Start the build**.
+4. **Ready**: choose an output format and result folder, then start the build.
    Steam Workshop, Steam Cloud and the number of jobs are under *Advanced options*.
 5. **Building**: the nine stages, how long is left, and **Stop**. Stopping is safe:
    **Carry on from where it was** resumes at the stage it was on. The computer does
@@ -99,6 +99,8 @@ The Builder checks for a matching `isaac-ng.exe` in the current folder, the
 checkout and its parent. `--exe` selects a specific executable. `--game`
 selects the folder containing `resources/` and `savedatapath.txt`.
 Use `build` in place of `gui` to run the same workflow in the terminal.
+`--format nsp` prepares the HOME Menu installer, `--format nro` prepares a
+direct-launch NRO, and `--format both` puts both in one SD card folder.
 
 On Linux, pass `--folder` with an existing command-line work folder that
 contains `stamps/` and `upstream/` to reuse it. The result stays under that

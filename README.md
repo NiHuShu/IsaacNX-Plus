@@ -29,7 +29,7 @@ You need a Switch that can already run homebrew, an SD card, a computer with [Do
 > **Back up your saves before installing, importing, or syncing them.** I’m not responsible for lost progress.
 
 1. Download or clone this repository and open its folder in a terminal. On Linux, start the included builder with the command below. See the [Builder guide](host/builder/README.md) for Windows, where you can use `py -3` in place of `python3`.
-2. In the builder, select your game folder and compatible executable. Choose a work folder, keep **Include Steam Workshop and Steam Cloud** enabled if you want Steam features, and start the build. Turn that checkbox off to make a build without Steam support.
+2. In the builder, select your game folder and compatible executable. Choose **Both** to put the HOME Menu installer and the direct-launch NRO on the same SD card. Enable **Include Steam Workshop and Steam Cloud** under Advanced options if you want Steam features.
 3. Use the builder’s **Copy to SD** option, or copy the resulting `sd-card` folder’s contents to the root of your SD card. Run the generated installer for a HOME Menu build, or open the NRO from the Homebrew Menu in Application mode. [SD card setup and controls](PLAYING.md#installing-on-the-switch)
 
 ```sh
@@ -43,10 +43,10 @@ python3 host/builder/isaac_switch_builder.py build \
   --folder ./build/isaacnx \
   --game "/path/to/The Binding of Isaac Rebirth" \
   --exe "/path/to/isaac-ng.unpacked.exe" \
-  --steam --format nro
+  --steam --format both
 ```
 
-Omit `--steam` to build without Workshop and Cloud. The builder uses the slim tools image, about **1 GB**, and builds it from this checkout on first use. Allow at least **4 GiB of build memory** and **6 GiB of free disk** for the work folder. The example selects a homebrew NRO. Use `--format nsp` for the upstream HOME Menu installer workflow. [Docker-only guide](GUIDE.md) · [Manual build guide](BUILDING.md)
+Omit `--steam` to build without Workshop and Cloud. Use `--format nro` for direct launch only or `--format nsp` for the installer only. The builder uses the slim tools image, about **1 GB**, and builds it from this checkout on first use. Allow at least **4 GiB of build memory** and **6 GiB of free disk** for the work folder. [Docker-only guide](GUIDE.md) · [Manual build guide](BUILDING.md)
 
 Your game executable and data stay on your computer. Keep the NRO and the generated game files for personal use. This repository contains source code and documentation.
 
