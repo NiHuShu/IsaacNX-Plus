@@ -90,13 +90,13 @@ step it was on. Each step's output is in `isaac-build/logs/`.
 
 Add `--check-only` at the end of the command to run only the checks.
 
-### Steam Cloud is left out by default
+### Steam Workshop and Cloud are optional
 
-The console can sign in to Steam, download your Cloud saves and upload them again
-(from the in-game panel, hold − and press +, and when the game closes), but it does
-so as an unofficial Steam client. To include it, read
-[STEAM-CLOUD.md](STEAM-CLOUD.md), then add `--steam` at the end of the command and
-run it again; only the last two steps repeat.
+Add `--steam` after the image name in the Docker command to include QR sign-in,
+on-console Workshop browsing and installation, optional manual Workshop
+subscription sync, and Cloud saves. Only the final compile and SD packaging
+steps repeat if you already built once. Omit `--steam` for a local-only build.
+[Steam Cloud guide](STEAM-CLOUD.md) · [Workshop guide](STEAM-WORKSHOP.md)
 
 ## Install
 

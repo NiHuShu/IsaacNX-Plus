@@ -50,6 +50,8 @@ HOME → Close: the game shuts down normally and writes its saves.
 
 The NRO contains the memory image of your executable. Do not share it.
 
+If you select the HOME Menu installer instead, follow the installer steps in the builder. That layout keeps your SD card mods in `sdmc:/switch/isaac-recomp/mods/`.
+
 ## Controls
 
 The pad goes through the game's own controller support, so the game's
@@ -69,6 +71,44 @@ although the run keeps going under it: A accepts and B goes back.
 The buttons drawn on screen are the Switch ones (`switch_glyphs=1`), using
 the Switch art that ships inside the PC game. The controls drawing on the
 first room's floor shows the in-run layout.
+
+## Game Options
+
+Press **X** on the launcher. Use the D-pad to select or change a setting,
+**A** to save, **B** to discard, and **X** to select the performance defaults.
+These changes apply when the game launches.
+
+A fresh setup uses an internal render scale of **1×** and disables caustics,
+bloom, shockwaves and room color correction. Lighting, the water surface and
+vertical sync stay on. **1×** is the lowest supported internal render scale.
+Higher render scales can sharpen text and small sprites. **Frame skip** has
+three choices. **Adaptive** skips extra frames as needed, **30 FPS** always
+skips the in-between frame to give busy rooms more time, and **60 FPS** draws
+every frame. The launcher reads existing settings. To use the preset on an existing setup,
+press **X**, then **A**.
+
+The menu writes the game's `options.ini` inside the save folder and keeps a
+Switch-local `saves/resources/config.ini` override for graphics effects.
+Frame skip is saved as `frame_skip` in the homebrew's `settings.ini`.
+
+**Skip water reflections** is an experimental option. It drops graphics
+draws while the game builds flooded-room reflections. It defaults to Off.
+If a reflection or mod effect is missing, turn the option off and relaunch.
+
+## Launcher artwork and font
+
+The builder extracts the Repentance+ logo from your installed game files. If
+your Steam library cache has the Isaac banner, the builder uses it automatically.
+You can also put the [official Steam library banner](https://shared.steamstatic.com/store_item_assets/steam/apps/250900/library_hero.jpg?t=1722458407)
+in `launcher-art/library_hero.jpg` at the root of your checkout before building.
+Put your copy of Motiva Sans Regular in the same folder as
+`MotivaSans-Regular.ttf` or `MotivaSans-Regular.woff` to use Steam's typeface.
+The launcher uses the Switch system font when it has no readable Motiva Sans
+file.
+
+You can also copy the font onto the SD card as
+`sdmc:/switch/isaac-recomp/ui/MotivaSans-Regular.ttf` (or `.woff`) for an
+existing build. The artwork and font are kept out of the source repository.
 
 ## settings.ini
 
@@ -107,11 +147,10 @@ check_game_files=1
 zoom=100
 ```
 
-**Zoom.** In the game, Options -> **Fullscreen** switches between the zoomed
-view of the console releases (on, the default) and the PC view (off), at once,
-even in a run. `zoom` says how far Fullscreen zooms in. The first start of a
-build with this setting adds the `zoom` line and turns Fullscreen on once, so
-the console view is the default for existing saves too.
+**Zoom.** Fullscreen starts off in a fresh setup and uses the wider PC view.
+In the game's Options menu, turn **Fullscreen** on to use the zoomed console
+view. You can switch views during a run. The `zoom` value controls how far
+Fullscreen zooms in.
 
 The launch screen names what is missing. Only what cannot work counts: a file that
 is not there or is empty, or an archive of 1 MiB or more with over 1 % gone. Other
@@ -190,7 +229,7 @@ The console can keep its saves in your account's Steam Cloud by talking to
 Steam itself: no PC, no Steam client running, no local network.
 
 The first time, the launch screen shows a QR code: scan it with the Steam app on
-your phone and approve the sign-in. **X** on that screen signs out again, which
+your phone and approve the sign-in. **−** on that screen signs out again, which
 also ends the session on Steam; your saves stay on the card. Press B on the code
 to play without syncing.
 
@@ -237,6 +276,56 @@ client with your account.
 Mods from the Steam Workshop work, including Lua mods. They were tested with
 17 mods at once (EID, Mod Config Menu, Enhanced Boss Bars, Planetarium
 Chance, Boss Rush Wave Counter and others) together with their saved data.
+
+### Steam Workshop on Switch
+
+Press **Y** at the launcher to open **Workshop**. Choose **Browse** and use
+**Y** for the Switch keyboard, **X** to change sort, and **−** to enter a Steam
+tag such as `Lua` or `Items`. Browse loads up to 24 results per page in a
+two-column grid. Hold the D-pad or left stick to move between cards and across
+page boundaries, or use **ZL / ZR** to jump between pages. If prompted,
+use **Y** for the existing Steam QR sign-in. After signing in, open Workshop
+again from the launcher.
+
+Open a listing with **A** to see its description, required items, and install
+or update action. Press **+** on a Browse card to start a local install or
+queue it behind the current download. The Browse screen shows download
+progress and the number waiting. **B** cancels the active download and clears
+the remaining queue. Use up and down to scroll the description. The scrollbar
+shows where you are. Supported descriptions show headings, emphasis, lists
+and quotes, and render embedded images and GIFs from supported image hosts.
+The selected card and the details page animate GIF previews. Long animations sample frames across the full loop.
+Recently visited pages and thumbnails stay cached until you leave Workshop
+or the cache fills. Changing the search, tag, or sort loads a fresh set of pages.
+
+**Y** on the details screen reviews missing dependencies. The mod page shows
+installation progress as a percentage and verified MiB. Press **B** to cancel
+during an install or return to the list once it finishes. A failed or cancelled
+replacement leaves the working copy available.
+
+Use **L / R** to switch tabs. **Installed** lists Workshop and manually
+copied mods. **X** changes the selected mod's enable setting for the next
+launch. **Y** checks Workshop versions and opens a review for individual or
+bulk updates. **−** removes a selected Workshop-managed mod after confirmation.
+The play launcher remains available via **B** when you finish.
+
+To compare the console with your Steam account, open **Sync** and select
+**Sync Steam Mods** with **A**. **X** cycles the sync direction on that tab.
+Mark or skip changes with **A** in the review, then press **X** to continue
+to the confirmation screen.
+
+- **Steam to Switch** proposes installs and updates from your subscriptions.
+  Removal of local copies for items you no longer subscribe to is optional.
+- **Switch to Steam** offers subscriptions for your local Workshop mods. It
+  leaves existing subscriptions in place.
+- **Two-way** shows both sets of differences. For an item present only on
+  Steam, you can explicitly choose to unsubscribe instead of installing it.
+
+Local removals and Steam subscription changes start deselected. Installing
+locally and subscribing on Steam are separate actions. Sync runs only after
+you confirm a plan.
+
+[Steam Workshop protocol, storage and limits](STEAM-WORKSHOP.md).
 
 ### Adding mods
 
@@ -337,6 +426,11 @@ there first.
 - **It stops while booting.** Check that the game files are under `guest/`
   exactly as in the layout above (`guest/resources/packed/…`, not
   `guest/The Binding of Isaac Rebirth/resources/…`).
+- **Vade Retro crashes at room clear in Greedier.** The room-clear fix passed
+  the normal, boss, and optional angel waves in a desktop Greed run. The
+  original Greedier report still needs a Switch test. If it recurs, keep
+  `browsing-last-run.txt` and the game's `log.txt` and record the seed, wave,
+  item use, and enabled mods.
 - **A mod does not appear.** Its folder needs `metadata.xml` at the top
   level, directly under `mods/<folder>/`.
 - **Mod settings are gone.** Copy the mod's data folder into

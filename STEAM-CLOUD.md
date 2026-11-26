@@ -29,11 +29,11 @@ The console needs the account's **refresh token** (`iss=steam`).
 **On the console**, as on a Steam Deck: with no `steam-token.txt` the launch
 screen opens a dialog with a QR code. Scan it from the Steam app on a phone and
 approve; the token is written to the SD card and the pull starts. B closes the
-dialog and the game can be played without sync; X on the page opens it again.
+dialog and the game can be played without sync. Press **−** on the page to open it again.
 The code renews itself while it waits. If Steam later refuses the token (removed
-from the account, or expired) the screen says so and X signs in again.
+from the account, or expired) the screen shows that status. Press **−** to sign in again.
 
-**X on the page signs out** once signed in, after a confirmation. It logs on and
+**− on the page signs out** once signed in, after a confirmation. It logs on and
 calls `Authentication.RevokeToken` (`revoke_action` permanent), so the session
 leaves the account's device list, then deletes `steam-token.txt`. Without a
 network the token is still deleted and the screen says Steam was not told; remove
@@ -65,6 +65,10 @@ Either way the session is named "Isaac on Switch (NRO)" and can be revoked at an
 time in Steam → Settings → Security → Manage devices. The token is plaintext on
 the SD card: anyone who reads the card can use it.
 
+The launcher Workshop uses this same QR account and token, including when
+`steam_sync=0`. Its **Sync Steam Mods** action requires a separate review and
+confirmation. Cloud transfers involve save files only. [Steam Workshop](STEAM-WORKSHOP.md).
+
 ## Does the account have the game?
 
 Every pull first asks Steam about the game and its expansions: 250900 (the game),
@@ -91,7 +95,7 @@ python3 host/build_native.py --profile switch --no-steam
 ```
 
 writes `build/browsing-native/switch-nosteam/isaac-repentance-ns1-recomp.nro` with none of this
-in it: no sign-in, sync, ownership check or TLS. The launch screen keeps Play and
+in it: no sign-in, Cloud, Workshop, ownership check or TLS. The launch screen keeps Play and
 the check of the game's files (see [PLAYING.md](PLAYING.md#settingsini)), and the
 `steam_sync` and `sync_prompt` settings do not exist. Measured on the ELF: no
 `isaac_steam*`, QR, ZIP or `ssl*` symbols, and none of the strings the client sends

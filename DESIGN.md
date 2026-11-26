@@ -181,11 +181,21 @@ The other patches are about speed (see [Performance](#performance)):
   libyuv and the CRT test the SSE bits only. Measured on PC: cutscene 17, 3
   and 4 show their footage with 0 GL errors; not yet watched on the console.
 
+- `0012-neon-video-upload.patch` uses AArch64 NEON for the RGB-to-RGBA copy on
+  Switch. It reads row-aligned RGB data in groups of 16 pixels and preserves
+  the scalar tail. This reduces the CPU work of widening uploads. The lifted
+  Theora decoder and the SD read path still need profiling in the affected
+  boss endings at stock Switch clocks.
+
 `build_native.py` also edits generated files on their way to the compiler:
 `lifted_000.c` gets the `.anm2` hook, `lifted_032.c` the stream-open path
 hook, and the cache hit of
 `dispatch_tbl.c` no longer updates the per-entry census (a random write into
 a 400 KB array on every indirect call; only the exit report read it).
+
+On v1.9.7.17, a Linux GLES test traced the Vade Retro Greed room-clear
+abort to a missing lifted callee at `0x005cd670`. The current build uses the
+v1.9.7.19 function inventory. Greedier still needs a test on Switch.
 
 Lua 5.3.3 is built with `LUA_EXTRASPACE 4`, like the game's 32-bit DLL (the
 game uses `lua_getextraspace(L) == L - 4`). `luaL_loadfilex` reads from the
@@ -482,7 +492,7 @@ passed.
 | `ISAAC_NATIVE_GLQ_CORE=<n>` | Switch: the render thread's core (default 1; the game thread runs on 0) |
 | `ISAAC_NATIVE_VBLANK_PACE=0` | Switch with vsync: pace the passes with the render gate's wall clock instead of one vblank each (see [Frame pacing](#frame-pacing-native_glc)) |
 | `ISAAC_NATIVE_FULLSCREEN_VIEW=<w>x<h>` | the window the engine gets in full screen, clamped to 800x480..960x540 (Switch play mode: from `zoom` in `settings.ini`); unset, full screen stays 960x540 |
-| `ISAAC_NATIVE_FULLSCREEN_ON=1` | with the variable above, turn `Fullscreen` on once in the saved `options.ini` (the Switch sets it at the first start of a build with `zoom`) |
+| `ISAAC_NATIVE_FULLSCREEN_ON=1` | with the variable above, explicitly turn `Fullscreen` on in `options.ini` for testing |
 | `ISAAC_NATIVE_CROP_FLIP=1` | Switch: show the top rows of the surface for a zoomed view instead of the bottom ones |
 | `ISAAC_NATIVE_WATCHDOG=<s>` | Switch: print the game thread's PC and LR every s seconds (`WATCHDOG` lines) |
 
@@ -733,3 +743,20 @@ Tried and dropped:
 - A guarded guest map on Horizon (today it is taken from the heap with no
   guard page above it).
 - Copying saves from the Switch back to a PC.
+
+
+## Experimental reflection skipping
+
+On Steam v1.9.7.19, the lifted room renderer enters `RENDER_WATER_REFLECT`
+at `0x82a09d` and flushes the last reflection batch before `0x82a200`.
+The build adds two host calls at those boundaries. When `skip_reflections=1`
+is set, the GLES wrappers skip the draw calls within that interval. The
+game still runs its usual room logic, render callbacks, and framebuffer
+setup. The change reduces graphics submissions for reflections. Switch
+frame-time gains and mod compatibility still need hardware testing.
+
+The NEON conversion helps RGB texture uploads during video playback.
+Endings still decode Theora on the game's cooperative worker. A different
+container alone would leave that decoder path in place, and replacing the
+codec or preconverting the videos would require validating the playback
+clock, audio, file layout, alternate endings, and save transitions.

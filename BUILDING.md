@@ -38,6 +38,9 @@ GAME="$HOME/.local/share/Steam/steamapps/common/The Binding of Isaac Rebirth"
 
 The pinned versions are also recorded in [upstream.json](upstream.json).
 
+The current build targets Steam v1.9.7.19, build ID 26836484.
+The builder uses the upstream supplied function inventory and version overlay.
+
 ## 2. The executable
 
 The pipeline reads the game's executable as a plain Windows PE image, the same
@@ -232,13 +235,20 @@ python3 host/build_native.py --profile switch
 
 The script re-runs itself inside that pinned devkitA64 image, without
 network, compiles everything for the Cortex-A57 and writes
-`build/browsing-native/switch/isaac-repentance-ns1-recomp.nro` (title "ISAAC REPENTANCE+
-NS1 RECOMP", with `isaac.segs.bin` and `instance_index.json` in its RomFS). It
+`build/browsing-native/switch/isaac-repentance-ns1-recomp.nro` (title "IsaacNX+", with `isaac.segs.bin` and `instance_index.json` in its RomFS). It
 prints the NRO's SHA256 at the end. Installation is described in
 [PLAYING.md](PLAYING.md#installing-on-the-switch).
 
-To leave out everything that talks to Steam (Cloud sync, QR sign-in, the ownership
-check and the network code behind them), add `--no-steam`. The NRO goes to
+The builder reads the application icon from your local executable and embeds
+it as a 256 × 256 JPEG. `build_native.py --icon /path/to/icon.jpg` selects a
+custom icon. The build needs Pillow and pefile to generate the default JPEG.
+
+A local devkitPro SDK used via `DEVKITPRO` needs the Switch liblzma, libzstd
+and libjpeg-turbo portlibs for Workshop content and previews, alongside
+the libraries already used by the launcher and game.
+
+Add `--no-steam` to build without Cloud, Workshop, QR sign-in, ownership
+checks and their network code. The NRO goes to
 `build/browsing-native/switch-nosteam/`; see
 [STEAM-CLOUD.md](STEAM-CLOUD.md#building-without-steam).
 
