@@ -183,7 +183,7 @@ class Plan:
     work: Path | None        # a folder (Linux); None means the VOLUME (Windows)
     export: Path | None      # where the SD card folder is copied, when work is the volume
     steam: bool = False
-    fmt: str = "nsp"         # build_all.py --format: nsp (installer + payload) or nro
+    fmt: str = "nsp"         # build_all.py --format: nsp, nro or both
     threads: int | None = None
     jobs: int | None = None
     check_only: bool = False

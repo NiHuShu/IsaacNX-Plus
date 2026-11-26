@@ -115,7 +115,7 @@ def cmd_build(args) -> int:
         say(t("image.failed"))
         return 2
     plan = make_plan(args, st, ref, game)
-    progress = Progress(export=plan.export is not None, nsp=plan.fmt == "nsp")
+    progress = Progress(export=plan.export is not None, nsp=plan.fmt in ("nsp", "both"))
     last = {"line": ""}
 
     def on_event(event):
@@ -157,6 +157,7 @@ def cmd_build(args) -> int:
         say()
         say(t("page.result.hash", sha=progress.result.get("nro_sha256", "")))
         say(t("cli.done", time=texts.duration(progress.elapsed()), path=system.result_folder(args.folder)))
+        say(texts.launch_steps(plan.fmt))
         say(t("page.result.share"))
         return 0
     if progress.stopped or rc in (130, 137, 143):
@@ -250,8 +251,8 @@ def parser() -> argparse.ArgumentParser:
     common(b)
     for p in (gui, b):
         p.add_argument("--steam", action="store_true", help="include Steam Workshop and Cloud saves")
-    b.add_argument("--format", choices=("nsp", "nro"), default="nsp",
-                   help="nsp: HOME menu installer (default); nro: the homebrew NRO")
+        p.add_argument("--format", choices=("nsp", "nro", "both"), default="nsp",
+                       help="nsp: HOME Menu installer (default); nro: direct launch; both: both launch methods")
     b.add_argument("--threads", type=int)
     b.add_argument("--jobs", type=int)
     b.add_argument("-v", "--verbose", action="store_true", help="show the build's log lines")
